@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ProjectSelector } from './project-selector'
+import { logout } from '@/lib/actions/site-auth'
 import type { Project } from '@/lib/types'
 
 type NavItem = { label: string; href: string }
@@ -132,6 +133,14 @@ export function Sidebar({ projects, selectedProject }: Props) {
           <span className="text-indigo-500">✦</span>
           Framework Insights
         </Link>
+        <form action={logout}>
+          <button
+            type="submit"
+            className="w-full rounded-md px-2 py-1.5 text-left text-[11px] text-zinc-600 hover:bg-zinc-800/60 hover:text-zinc-400 transition-colors"
+          >
+            로그아웃
+          </button>
+        </form>
         <p className="px-2 text-[10px] text-zinc-800">paper-framework v0.2</p>
       </div>
     </aside>
