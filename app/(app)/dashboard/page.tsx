@@ -1,12 +1,209 @@
 import Link from 'next/link'
-import { getDashboardStats } from '@/lib/actions/papers'
-import { getTracks } from '@/lib/actions/tracks'
 import { getProject } from '@/lib/actions/projects'
+import { getTracks } from '@/lib/actions/tracks'
 import { getSelectedProjectId } from '@/lib/selected-project'
-import { TrackStatusBadge, ProjectStatusBadge } from '@/components/ui/badge'
+import { createClient } from '@/lib/supabase/server'
+import { ProjectStatusBadge, TrackStatusBadge } from '@/components/ui/badge'
 import { ProjectDialog } from '@/components/module0/project-dialog'
+import type { Project, Track } from '@/lib/types'
 
 export const metadata = { title: 'Dashboard — Academic Factory' }
+
+// ── 진행 데이터 fetch ─────────────────────────────────────
+
+interface Progress {
+  refPaperCount:   number
+  keyPaperCount:   number
+  journalCount:    number
+  shortlistedCount: number
+  assetCount:      number
+  hypothesisCount: number
+  activeHypothesisCount: number
+  draftCount:      number
+  readyDraftCount: number
+  figureCount:     number
+  reviewCount:     number
+}
+
+async function fetchProgress(projectId: string, trackIds: string[]): Promise<Progress> {
+  const supabase = await createClient()
+
+  const [refPapers, journals, assets, hypotheses, drafts, figures, reviews] = await Promise.all([
+    supabase.from('reference_papers').select('status').eq('project_id', projectId),
+    supabase.from('journals').select('status').eq('project_id', projectId),
+    supabase.from('assets').select('id', { count: 'exact', head: true }).eq('project_id', projectId),
+    trackIds.length > 0
+      ? supabase.from('hypotheses').select('status').in('track_id', trackIds)
+      : Promise.resolve({ data: [] as { status: string }[] }),
+    trackIds.length > 0
+      ? supabase.from('drafts').select('id, status').in('track_id', trackIds)
+      : Promise.resolve({ data: [] as { id: string; status: string }[] }),
+    trackIds.length > 0
+      ? supabase.from('figures').select('id', { count: 'exact', head: true }).in('track_id', trackIds)
+      : Promise.resolve({ count: 0 }),
+    trackIds.length > 0
+      ? supabase.from('reviews').select('id', { count: 'exact', head: true }).in('track_id', trackIds)
+      : Promise.resolve({ count: 0 }),
+  ])
+
+  const rp = refPapers.data ?? []
+  const jr = journals.data ?? []
+  const hy = hypotheses.data ?? []
+  const dr = drafts.data ?? []
+
+  return {
+    refPaperCount:        rp.length,
+    keyPaperCount:        rp.filter((p) => p.status === 'key').length,
+    journalCount:         jr.length,
+    shortlistedCount:     jr.filter((j) => j.status === 'shortlisted' || j.status === 'submitted' || j.status === 'accepted').length,
+    assetCount:           (assets as { count: number }).count ?? 0,
+    hypothesisCount:      hy.length,
+    activeHypothesisCount: hy.filter((h) => h.status === 'active' || h.status === 'testing' || h.status === 'confirmed').length,
+    draftCount:           dr.length,
+    readyDraftCount:      dr.filter((d) => d.status === 'ready' || d.status === 'submitted').length,
+    figureCount:          (figures as { count: number }).count ?? 0,
+    reviewCount:          (reviews as { count: number }).count ?? 0,
+  }
+}
+
+// ── 단계 정의 ─────────────────────────────────────────────
+
+interface Step {
+  id: string
+  module: string
+  phase: string
+  title: string
+  description: string
+  href: string
+  done: boolean
+  current?: number
+  target?: number
+}
+
+function buildSteps(p: Progress, tracks: Track[], intent: string | null): Step[] {
+  const topic = intent
+    ? `"${intent.length > 40 ? intent.slice(0, 40) + '…' : intent}"`
+    : null
+
+  return [
+    {
+      id: 'tracks',
+      module: 'M0',
+      phase: '기초',
+      title: '연구 트랙 설정',
+      description: topic
+        ? `${topic} 아이디어를 구체적인 연구 주제별로 트랙을 만들어 나누세요.`
+        : '프로젝트 아이디어를 구체적인 연구 주제(트랙)로 분리해 관리하세요.',
+      href: '/tracks',
+      done: tracks.length > 0,
+      current: tracks.length,
+      target: 1,
+    },
+    {
+      id: 'ref-papers',
+      module: 'M0',
+      phase: '기초',
+      title: '선행 연구 수집',
+      description: topic
+        ? `${topic} 관련 선행 연구를 5편 이상 수집하고, 핵심 논문을 선정하세요.`
+        : '관련 선행 연구를 5편 이상 수집하고 핵심 논문(key)을 선정하세요.',
+      href: '/reference-papers',
+      done: p.refPaperCount >= 5 && p.keyPaperCount >= 1,
+      current: p.refPaperCount,
+      target: 5,
+    },
+    {
+      id: 'journals',
+      module: 'M1',
+      phase: '전략',
+      title: '저널 후보 선정',
+      description: topic
+        ? `${topic} 를 발표할 적합한 저널 후보를 2개 이상 shortlist에 등록하세요.`
+        : '투고할 저널 후보를 2개 이상 shortlist에 등록하고 전략을 세우세요.',
+      href: '/journal',
+      done: p.shortlistedCount >= 2,
+      current: p.shortlistedCount,
+      target: 2,
+    },
+    {
+      id: 'hypotheses',
+      module: 'M3',
+      phase: '논증',
+      title: '연구 가설 정의',
+      description: topic
+        ? `${topic} 를 검증하기 위한 핵심 가설을 최소 1개 이상 active로 설정하세요.`
+        : '연구의 핵심 가설을 정의하고 active 상태로 전환하세요.',
+      href: '/architect',
+      done: p.activeHypothesisCount >= 1,
+      current: p.activeHypothesisCount,
+      target: 1,
+    },
+    {
+      id: 'assets',
+      module: 'M2',
+      phase: '논증',
+      title: '핵심 자산 수집',
+      description: '인용구, 실험 데이터, 그림 등 논문에 활용할 자산을 3개 이상 저장하세요.',
+      href: '/assets',
+      done: p.assetCount >= 3,
+      current: p.assetCount,
+      target: 3,
+    },
+    {
+      id: 'draft',
+      module: 'M4',
+      phase: '집필',
+      title: '초고 작성 시작',
+      description: '아웃라인부터 시작해 초고를 만들어 보세요. 완벽하지 않아도 됩니다.',
+      href: '/draft',
+      done: p.draftCount >= 1,
+      current: p.draftCount,
+      target: 1,
+    },
+    {
+      id: 'figures',
+      module: 'M5',
+      phase: '집필',
+      title: '그림 & 데이터 계획',
+      description: '논문에 필요한 그림과 차트를 미리 계획하고 제작 진행 상태를 추적하세요.',
+      href: '/figures',
+      done: p.figureCount >= 1,
+      current: p.figureCount,
+      target: 1,
+    },
+    {
+      id: 'redteam',
+      module: 'M6',
+      phase: '검토',
+      title: 'Red Team 리뷰',
+      description: '가상 리뷰어 관점에서 초고를 비판하고 약점을 보완해 완성도를 높이세요.',
+      href: '/redteam',
+      done: p.reviewCount >= 3,
+      current: p.reviewCount,
+      target: 3,
+    },
+  ]
+}
+
+// ── 모듈 파이프라인 상태 ───────────────────────────────────
+
+function getPipelineStatus(steps: Step[]) {
+  return [
+    { id: 0, label: '주제\n관리',       stepIds: ['tracks', 'ref-papers'],    href: '/dashboard' },
+    { id: 1, label: '저널\n인텔리전스', stepIds: ['journals'],                href: '/journal' },
+    { id: 2, label: '자산\n라이브러리', stepIds: ['assets'],                  href: '/assets' },
+    { id: 3, label: '논증\n설계',        stepIds: ['hypotheses'],              href: '/architect' },
+    { id: 4, label: '초고\n공장',        stepIds: ['draft'],                   href: '/draft' },
+    { id: 5, label: '그림\n& 데이터',   stepIds: ['figures'],                 href: '/figures' },
+    { id: 6, label: '레드팀\n& 제출',    stepIds: ['redteam'],                 href: '/redteam' },
+  ].map((mod) => ({
+    ...mod,
+    done:   mod.stepIds.every((id) => steps.find((s) => s.id === id)?.done),
+    active: mod.stepIds.some((id) => !steps.find((s) => s.id === id)?.done),
+  }))
+}
+
+// ── 페이지 ────────────────────────────────────────────────
 
 export default async function DashboardPage() {
   const selectedProjectId = await getSelectedProjectId()
@@ -32,9 +229,8 @@ export default async function DashboardPage() {
     )
   }
 
-  const [project, stats, tracks] = await Promise.all([
+  const [project, tracks] = await Promise.all([
     getProject(selectedProjectId),
-    getDashboardStats(selectedProjectId),
     getTracks(selectedProjectId),
   ])
 
@@ -46,9 +242,16 @@ export default async function DashboardPage() {
     )
   }
 
-  const activeTracks  = tracks.filter((t) => t.status === 'active')
-  const pausedTracks  = tracks.filter((t) => t.status === 'paused')
-  const rootTracks    = tracks.filter((t) => !t.parent_track_id)
+  const trackIds = tracks.map((t) => t.id)
+  const progress = await fetchProgress(selectedProjectId, trackIds)
+  const steps    = buildSteps(progress, tracks, project.research_intent)
+  const pipeline = getPipelineStatus(steps)
+
+  const doneSteps    = steps.filter((s) => s.done)
+  const pendingSteps = steps.filter((s) => !s.done)
+  const nextSteps    = pendingSteps.slice(0, 3)
+  const totalDone    = doneSteps.length
+  const progressPct  = Math.round((totalDone / steps.length) * 100)
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
@@ -61,13 +264,16 @@ export default async function DashboardPage() {
               <ProjectStatusBadge status={project.status} />
             </div>
             {project.research_intent && (
-              <p className="mt-1 max-w-2xl text-sm text-zinc-500">{project.research_intent}</p>
+              <p className="mt-1.5 max-w-2xl text-sm text-zinc-400 leading-relaxed">
+                <span className="text-zinc-600 text-xs mr-1.5 font-medium uppercase tracking-wide">Research Intent</span>
+                {project.research_intent}
+              </p>
             )}
           </div>
           <ProjectDialog
             project={project}
             trigger={
-              <button className="rounded border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:border-zinc-600 hover:text-zinc-300 transition-colors">
+              <button className="shrink-0 rounded border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:border-zinc-600 hover:text-zinc-300 transition-colors">
                 편집
               </button>
             }
@@ -76,141 +282,151 @@ export default async function DashboardPage() {
       </div>
 
       <div className="flex-1 px-8 py-6 space-y-8">
-        {/* Stats */}
-        <div className="grid grid-cols-4 gap-4">
-          {[
-            { label: '전체 트랙',   value: stats.total_tracks,  sub: `${stats.active_tracks}개 활성` },
-            { label: '트랙 논문',   value: stats.total_papers,  sub: `${stats.unread_papers}편 미읽음` },
-            { label: '핵심 논문',   value: stats.key_papers,    sub: '핵심 읽기 지정' },
-            { label: '일시정지',    value: pausedTracks.length, sub: '재개 대기 중' },
-          ].map((card) => (
-            <div key={card.label} className="rounded-lg border border-zinc-800 bg-zinc-900 px-5 py-4">
-              <p className="text-xs text-zinc-500 uppercase tracking-wide">{card.label}</p>
-              <p className="mt-1 text-3xl font-bold text-zinc-100">{card.value}</p>
-              <p className="mt-1 text-xs text-zinc-600">{card.sub}</p>
-            </div>
-          ))}
-        </div>
 
-        {/* 트랙 현황 */}
+        {/* 지금 해야 할 일 */}
         <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-zinc-300">연구 트랙</h2>
-            <Link
-              href="/tracks"
-              className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-            >
-              전체 보기 →
-            </Link>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-zinc-200">지금 해야 할 일</h2>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 w-32 rounded-full bg-zinc-800 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-indigo-500 transition-all duration-500"
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+                <span className="text-xs text-zinc-500">{totalDone}/{steps.length} 완료</span>
+              </div>
+            </div>
           </div>
 
-          {tracks.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-zinc-800 py-12 text-center">
-              <p className="text-sm text-zinc-600">이 프로젝트에 트랙이 없습니다.</p>
-              <Link
-                href="/tracks"
-                className="mt-2 inline-block text-xs text-indigo-400 hover:text-indigo-300"
-              >
-                첫 번째 트랙 만들기 →
-              </Link>
+          {nextSteps.length === 0 ? (
+            <div className="rounded-xl border border-emerald-800 bg-emerald-950/40 px-6 py-8 text-center">
+              <p className="text-2xl">🎉</p>
+              <p className="mt-2 text-sm font-medium text-emerald-400">모든 단계를 완료했습니다!</p>
+              <p className="mt-1 text-xs text-zinc-500">논문 제출 준비가 되었습니다.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
-              {activeTracks.slice(0, 6).map((track) => (
-                <Link
-                  key={track.id}
-                  href={`/tracks/${track.id}`}
-                  className="group flex items-start gap-3 rounded-lg border border-zinc-800 bg-zinc-900 p-4 hover:border-zinc-700 transition-colors"
+            <div className="space-y-2.5">
+              {nextSteps.map((step, i) => (
+                <div
+                  key={step.id}
+                  className={`rounded-xl border px-5 py-4 transition-colors ${
+                    i === 0
+                      ? 'border-indigo-700 bg-indigo-950/50'
+                      : 'border-zinc-800 bg-zinc-900'
+                  }`}
                 >
-                  <span
-                    className="mt-0.5 h-3 w-3 shrink-0 rounded-full"
-                    style={{ backgroundColor: track.color }}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate text-sm font-medium text-zinc-200 group-hover:text-zinc-100">
-                        {track.name}
-                      </p>
-                      {track.parent_track_id && (
-                        <span className="shrink-0 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-500">
-                          {track.relation_type === 'sequential' ? '후속' : '병렬'}
+                  <div className="flex items-start gap-4">
+                    {/* 우선순위 번호 */}
+                    <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                      i === 0 ? 'bg-indigo-600 text-white' : 'bg-zinc-800 text-zinc-500'
+                    }`}>
+                      {i + 1}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                          i === 0 ? 'bg-indigo-800 text-indigo-300' : 'bg-zinc-800 text-zinc-500'
+                        }`}>
+                          {step.module}
                         </span>
+                        <span className="text-[10px] text-zinc-600 uppercase tracking-wide">{step.phase}</span>
+                      </div>
+                      <p className={`text-sm font-semibold ${i === 0 ? 'text-zinc-100' : 'text-zinc-300'}`}>
+                        {step.title}
+                      </p>
+                      <p className="mt-0.5 text-xs leading-relaxed text-zinc-500">
+                        {step.description}
+                      </p>
+                      {step.current !== undefined && step.target !== undefined && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <div className="h-1 w-24 rounded-full bg-zinc-800 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${i === 0 ? 'bg-indigo-500' : 'bg-zinc-600'}`}
+                              style={{ width: `${Math.min((step.current / step.target) * 100, 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-zinc-600">
+                            {step.current} / {step.target}
+                          </span>
+                        </div>
                       )}
                     </div>
-                    {track.research_intent && (
-                      <p className="mt-0.5 line-clamp-1 text-xs text-zinc-600">
-                        {track.research_intent}
-                      </p>
-                    )}
-                    <div className="mt-2 flex items-center gap-2">
-                      <TrackStatusBadge status={track.status} />
-                      <span className="text-xs text-zinc-600">
-                        {track.paper_count ?? 0} papers
-                      </span>
-                    </div>
+
+                    <Link
+                      href={step.href}
+                      className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                        i === 0
+                          ? 'bg-indigo-600 text-white hover:bg-indigo-500'
+                          : 'border border-zinc-700 text-zinc-400 hover:border-zinc-600 hover:text-zinc-300'
+                      }`}
+                    >
+                      시작하기 →
+                    </Link>
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           )}
 
-          {/* 트랙 구조 미리보기 */}
-          {rootTracks.length > 0 && (
-            <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
-              <p className="mb-2 text-xs font-medium text-zinc-500">트랙 구조</p>
-              <div className="space-y-1.5">
-                {rootTracks.map((root) => {
-                  const children = tracks.filter((t) => t.parent_track_id === root.id)
-                  return (
-                    <div key={root.id}>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="h-2 w-2 rounded-full"
-                          style={{ backgroundColor: root.color }}
-                        />
-                        <span className="text-xs text-zinc-400">{root.name}</span>
-                      </div>
-                      {children.map((child) => (
-                        <div key={child.id} className="ml-4 mt-1 flex items-center gap-2">
-                          <span className="text-zinc-700">└</span>
-                          <span
-                            className="h-1.5 w-1.5 rounded-full"
-                            style={{ backgroundColor: child.color }}
-                          />
-                          <span className="text-xs text-zinc-500">{child.name}</span>
-                          <span className="text-[10px] text-zinc-700">
-                            ({child.relation_type === 'sequential' ? '후속 연구' : '병렬 진행'})
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )
-                })}
-              </div>
+          {/* 대기 중인 다음 단계 */}
+          {pendingSteps.length > 3 && (
+            <div className="mt-2 px-1">
+              <p className="text-xs text-zinc-700">
+                다음 단계: {pendingSteps.slice(3).map((s) => s.title).join(' · ')}
+              </p>
             </div>
           )}
         </div>
 
+        {/* 완료된 단계 */}
+        {doneSteps.length > 0 && (
+          <div>
+            <h2 className="mb-3 text-sm font-semibold text-zinc-500">완료된 항목</h2>
+            <div className="grid grid-cols-2 gap-1.5">
+              {doneSteps.map((step) => (
+                <Link
+                  key={step.id}
+                  href={step.href}
+                  className="group flex items-center gap-2.5 rounded-lg border border-zinc-800/50 bg-zinc-900/50 px-3 py-2.5 hover:border-zinc-700 transition-colors"
+                >
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-900">
+                    <span className="text-emerald-400 text-[10px]">✓</span>
+                  </span>
+                  <span className="text-xs text-zinc-500 group-hover:text-zinc-400 transition-colors">{step.title}</span>
+                  <span className="ml-auto text-[10px] text-zinc-700">{step.module}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* 모듈 파이프라인 */}
         <div>
-          <h2 className="mb-3 text-sm font-semibold text-zinc-300">모듈 파이프라인</h2>
+          <h2 className="mb-3 text-sm font-semibold text-zinc-500">모듈 파이프라인</h2>
           <div className="grid grid-cols-7 gap-2">
-            {[
-              { id: 0, label: '주제\n관리',       href: '/dashboard' },
-              { id: 1, label: '저널\n인텔리전스', href: '/journal' },
-              { id: 2, label: '자산\n라이브러리', href: '/assets' },
-              { id: 3, label: '논증\n설계',        href: '/architect' },
-              { id: 4, label: '초고\n공장',        href: '/draft' },
-              { id: 5, label: '그림\n& 데이터',   href: '/figures' },
-              { id: 6, label: '레드팀\n& 제출',    href: '/redteam' },
-            ].map((mod, i) => (
+            {pipeline.map((mod, i) => (
               <Link key={mod.id} href={mod.href} className="group relative">
                 {i > 0 && (
-                  <div className="absolute top-4 -left-1 h-px w-2 bg-zinc-800" />
+                  <div className={`absolute top-4 -left-1 h-px w-2 ${mod.done ? 'bg-emerald-800' : 'bg-zinc-800'}`} />
                 )}
-                <div className="rounded-lg border border-indigo-800 bg-indigo-950 px-2 py-3 text-center transition-colors group-hover:border-indigo-600 group-hover:bg-indigo-900">
-                  <p className="text-[10px] font-bold text-indigo-400">M{mod.id}</p>
-                  <p className="mt-1 whitespace-pre-line text-[10px] leading-tight text-zinc-300">
+                <div className={`rounded-lg border px-2 py-3 text-center transition-colors ${
+                  mod.done
+                    ? 'border-emerald-800 bg-emerald-950/50 group-hover:border-emerald-700'
+                    : mod.active
+                    ? 'border-indigo-700 bg-indigo-950/60 group-hover:border-indigo-600'
+                    : 'border-zinc-800 bg-zinc-900 group-hover:border-zinc-700'
+                }`}>
+                  <p className={`text-[10px] font-bold ${
+                    mod.done ? 'text-emerald-400' : mod.active ? 'text-indigo-400' : 'text-zinc-700'
+                  }`}>
+                    {mod.done ? '✓' : `M${mod.id}`}
+                  </p>
+                  <p className={`mt-1 whitespace-pre-line text-[10px] leading-tight ${
+                    mod.done ? 'text-emerald-600' : mod.active ? 'text-zinc-300' : 'text-zinc-700'
+                  }`}>
                     {mod.label}
                   </p>
                 </div>
@@ -218,6 +434,45 @@ export default async function DashboardPage() {
             ))}
           </div>
         </div>
+
+        {/* 트랙 현황 */}
+        {tracks.length > 0 && (
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-zinc-500">연구 트랙</h2>
+              <Link href="/tracks" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
+                전체 보기 →
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              {tracks.filter((t) => t.status === 'active').slice(0, 4).map((track) => (
+                <Link
+                  key={track.id}
+                  href={`/tracks/${track.id}`}
+                  className="group flex items-start gap-3 rounded-lg border border-zinc-800 bg-zinc-900 p-4 hover:border-zinc-700 transition-colors"
+                >
+                  <span className="mt-0.5 h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: track.color }} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-zinc-300 group-hover:text-zinc-100">
+                      {track.name}
+                    </p>
+                    {track.research_intent && (
+                      <p className="mt-0.5 line-clamp-1 text-xs text-zinc-600">{track.research_intent}</p>
+                    )}
+                    <div className="mt-2 flex items-center gap-2">
+                      <TrackStatusBadge status={track.status} />
+                      {track.parent_track_id && (
+                        <span className="text-[10px] text-zinc-700">
+                          {track.relation_type === 'sequential' ? '후속' : '병렬'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
