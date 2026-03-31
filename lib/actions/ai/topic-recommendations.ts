@@ -1,14 +1,14 @@
 'use server'
 
-import OpenAI from 'openai'
+import { generateJson } from '@/lib/ai/generate'
 
 export interface TopicRecommendation {
-  title:              string   // specific, publishable paper title
-  angle:              string   // one-line strategic angle (Korean)
-  gap:                string   // research gap addressed (Korean, 2 sentences)
-  novelty:            string   // novelty argument (Korean, 1 sentence)
-  supporting_count:   number   // estimated pool papers that back this topic
-  confidence:         number   // 0–100
+  title:            string   // specific, publishable paper title
+  angle:            string   // strategic angle (Korean, ≤15 chars)
+  gap:              string   // research gap addressed (Korean, 2 sentences)
+  novelty:          string   // novelty argument (Korean, 1 sentence)
+  supporting_count: number   // pool papers that back this topic
+  confidence:       number   // 0–100
 }
 
 export type TopicResult =
@@ -25,35 +25,37 @@ export async function recommendTopics(
   projectName: string,
   researchIntent: string,
   poolPapers: PoolPaper[],
+  userInsights?: string[],   // accumulated researcher insights
 ): Promise<TopicResult> {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey || apiKey === 'your-openai-api-key-here') {
-    return { success: false, error: 'OPENAI_API_KEY가 설정되지 않았습니다.' }
-  }
-
-  const client = new OpenAI({ apiKey })
-
-  // Compact paper list for prompt — keep token count manageable
   const paperList = poolPapers
     .slice(0, 80)
-    .map((p, i) => `${i + 1}. ${p.title}${p.year ? ` (${p.year})` : ''}${p.journal ? ` — ${p.journal}` : ''}`)
+    .map((p, i) =>
+      `${i + 1}. ${p.title}${p.year ? ` (${p.year})` : ''}${p.journal ? ` — ${p.journal}` : ''}`,
+    )
     .join('\n')
 
-  const prompt = `You are an expert academic research advisor analyzing a literature pool to identify publishable paper topics.
+  const insightsSection =
+    userInsights && userInsights.length > 0
+      ? `\nResearcher's accumulated insights (these reflect the human expert's intuition — prioritize topics that align with these):\n${userInsights
+          .map((ins, i) => `${i + 1}. "${ins}"`)
+          .join('\n')}\n`
+      : ''
+
+  const prompt = `You are an expert academic research advisor identifying publishable paper topics from a literature pool.
 
 Project: ${projectName}
 Research Intent: ${researchIntent}
-
+${insightsSection}
 Literature Pool (${poolPapers.length} papers):
 ${paperList}
 
-Based on the patterns, gaps, and convergence points in this literature pool, recommend exactly 4 specific, publishable paper topics.
+Analyze the patterns, convergence points, and gaps in this literature pool. The researcher's insights above represent human intuition and domain expertise — let them guide topic selection.
 
-Each topic must:
-- Have a concrete, compelling paper title (not vague — specific enough to search for)
-- Address a real research gap visible in the pool
-- Be feasible to execute based on what the pool covers
-- Be sufficiently novel to be publishable
+Recommend exactly 4 specific, publishable paper topics that:
+- Address genuine research gaps visible in the pool
+- Align with the researcher's insights and intent
+- Are feasible to execute based on what the pool covers
+- Are novel enough to be publishable in a top-tier journal
 
 Return ONLY a valid JSON array of exactly 4 objects:
 [
@@ -70,35 +72,13 @@ Return ONLY a valid JSON array of exactly 4 objects:
 Order by confidence descending. No markdown — pure JSON only.`
 
   try {
-    const response = await client.chat.completions.create({
-      model:           'gpt-4o-mini',
-      messages:        [{ role: 'user', content: prompt }],
-      temperature:     0.5,
-      response_format: { type: 'json_object' },
-    })
-
-    const raw = response.choices[0]?.message?.content ?? ''
-
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(raw)
-    } catch {
-      return { success: false, error: 'AI 응답 파싱 실패. 다시 시도해 주세요.' }
-    }
-
-    const list: TopicRecommendation[] = Array.isArray(parsed)
-      ? parsed
-      : (parsed as Record<string, unknown>).topics as TopicRecommendation[]
-        ?? (parsed as Record<string, unknown>).data as TopicRecommendation[]
-        ?? []
-
-    if (!list.length) {
+    const list = await generateJson<TopicRecommendation[]>(prompt, 0.5)
+    if (!Array.isArray(list) || !list.length) {
       return { success: false, error: '주제 추천 실패. 다시 시도해 주세요.' }
     }
-
     return { success: true, data: list.slice(0, 4) }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
-    return { success: false, error: `AI 오류: ${msg}` }
+    return { success: false, error: msg }
   }
 }

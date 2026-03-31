@@ -21,13 +21,20 @@ const POOL_THRESHOLD = 15   // papers needed to unlock topic recommendations
 
 // ── Types ─────────────────────────────────────────────────
 interface SearchRound {
-  id:        string
-  question:  string
-  angle:     string
-  papers:    FoundPaper[]
-  error:     string | null
-  savedIds:  Set<string>
-  expanded:  boolean
+  id:           string
+  question:     string
+  angle:        string
+  user_insight: string | null   // researcher's own annotation
+  papers:       FoundPaper[]
+  error:        string | null
+  savedIds:     Set<string>
+  expanded:     boolean
+}
+
+interface PendingQuestion {
+  question: string
+  angle:    string
+  insight:  string
 }
 
 interface Props {
@@ -54,6 +61,9 @@ export function LiteratureDiscoveryPanel({
   const [qError, setQError]             = useState<string | null>(null)
   const [customQ, setCustomQ]           = useState('')
   const [isFollowUp, setIsFollowUp]     = useState(false)
+
+  // Pending question (insight input step)
+  const [pendingQ, setPendingQ]         = useState<PendingQuestion | null>(null)
 
   // Rounds (search history)
   const [rounds, setRounds]             = useState<SearchRound[]>([])
@@ -83,8 +93,9 @@ export function LiteratureDiscoveryPanel({
     setQError(null)
 
     const history: SearchHistoryItem[] = rounds.map((r) => ({
-      question:    r.question,
-      paperTitles: r.papers.slice(0, 8).map((p) => p.title),
+      question:     r.question,
+      paperTitles:  r.papers.slice(0, 8).map((p) => p.title),
+      user_insight: r.user_insight,
     }))
 
     const result = await generateResearchQuestions(
@@ -103,16 +114,17 @@ export function LiteratureDiscoveryPanel({
   }, [intent, projectName, rounds])
 
   // ── Step 2: Search papers for a question ────────────────
-  const handleSearch = useCallback(async (question: string, angle: string) => {
+  const handleSearch = useCallback(async (question: string, angle: string, insight: string | null) => {
     if (!question.trim() || searching) return
     setSearching(true)
     setCustomQ('')
+    setPendingQ(null)
+    setQuestions([])   // clear so user generates next round
 
     const roundId = crypto.randomUUID()
-    // Optimistically add round
     setRounds((prev) => [
       ...prev,
-      { id: roundId, question, angle, papers: [], error: null, savedIds: new Set(), expanded: true },
+      { id: roundId, question, angle, user_insight: insight, papers: [], error: null, savedIds: new Set(), expanded: true },
     ])
 
     const result = await searchPapers(question, 15)
@@ -128,8 +140,6 @@ export function LiteratureDiscoveryPanel({
           : r,
       ),
     )
-    // Clear questions — user needs to generate next round of questions
-    setQuestions([])
     setSearching(false)
   }, [searching])
 
@@ -186,7 +196,11 @@ export function LiteratureDiscoveryPanel({
       ...sessionSaved,
     ]
 
-    const result = await recommendTopics(projectName, intent, allPapers)
+    const allInsights = rounds
+      .map((r) => r.user_insight)
+      .filter((i): i is string => !!i)
+
+    const result = await recommendTopics(projectName, intent, allPapers, allInsights)
     if (!result.success) {
       setTopicsError(result.error)
     } else {
@@ -300,34 +314,97 @@ export function LiteratureDiscoveryPanel({
               <span className="text-zinc-700">— 하나를 클릭하거나 직접 입력하세요</span>
             </p>
 
-            {questions.map((q, i) => (
-              <button
-                key={q.question}
-                onClick={() => handleSearch(q.question, q.angle)}
-                disabled={searching}
-                className="group w-full flex items-start gap-3 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3.5 text-left hover:border-indigo-500/50 hover:bg-indigo-900/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-xs font-bold text-zinc-400 group-hover:bg-indigo-800 group-hover:text-indigo-200 transition-colors">
-                  {i + 1}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400 group-hover:bg-indigo-900/60 group-hover:text-indigo-300 transition-colors">
-                      {q.angle}
+            {questions.map((q, i) => {
+              const isPending = pendingQ?.question === q.question
+              return (
+                <div key={q.question}>
+                  <button
+                    onClick={() => {
+                      if (isPending) {
+                        setPendingQ(null)
+                      } else {
+                        setPendingQ({ question: q.question, angle: q.angle, insight: '' })
+                      }
+                    }}
+                    disabled={searching}
+                    className={`group w-full flex items-start gap-3 rounded-lg border px-4 py-3.5 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                      isPending
+                        ? 'border-indigo-500/60 bg-indigo-900/20'
+                        : 'border-zinc-800 bg-zinc-900 hover:border-indigo-500/50 hover:bg-indigo-900/10'
+                    }`}
+                  >
+                    <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors ${
+                      isPending
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-zinc-800 text-zinc-400 group-hover:bg-indigo-800 group-hover:text-indigo-200'
+                    }`}>
+                      {i + 1}
                     </span>
-                  </div>
-                  <p className="text-sm text-zinc-300 leading-snug group-hover:text-zinc-100">
-                    {q.question}
-                  </p>
-                  <p className="mt-1 text-xs text-zinc-600 group-hover:text-zinc-500 leading-snug">
-                    {q.focus}
-                  </p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
+                          isPending
+                            ? 'bg-indigo-800/60 text-indigo-200'
+                            : 'bg-zinc-800 text-zinc-400 group-hover:bg-indigo-900/60 group-hover:text-indigo-300'
+                        }`}>
+                          {q.angle}
+                        </span>
+                      </div>
+                      <p className={`text-sm leading-snug transition-colors ${
+                        isPending ? 'text-zinc-100' : 'text-zinc-300 group-hover:text-zinc-100'
+                      }`}>
+                        {q.question}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-600 group-hover:text-zinc-500 leading-snug">
+                        {q.focus}
+                      </p>
+                    </div>
+                    <span className={`mt-1 shrink-0 text-xs transition-colors ${
+                      isPending ? 'text-indigo-400' : 'text-zinc-700 group-hover:text-indigo-400'
+                    }`}>
+                      {isPending ? '▾' : '선택 →'}
+                    </span>
+                  </button>
+
+                  {/* Insight input (expands when this question is selected) */}
+                  {isPending && (
+                    <div className="mt-1 rounded-b-lg border border-t-0 border-indigo-500/30 bg-indigo-950/30 px-4 py-4 space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-zinc-400 mb-1.5">
+                          💡 인사이트 추가{' '}
+                          <span className="text-zinc-600 font-normal">(선택 — AI가 다음 질문에 반영)</span>
+                        </label>
+                        <textarea
+                          placeholder="이 방향을 선택한 이유나 직관을 적어주세요. 예: 최근 foundation model이 NIR 스펙트럼 분석에서 주목받고 있어서, 이 관점이 핵심이 될 것 같아서…"
+                          value={pendingQ?.insight ?? ''}
+                          onChange={(e) =>
+                            setPendingQ((prev) => prev ? { ...prev, insight: e.target.value } : null)
+                          }
+                          rows={2}
+                          className="w-full rounded-lg border border-zinc-700 bg-zinc-800/80 px-3 py-2 text-sm text-zinc-300 placeholder-zinc-600 outline-none focus:border-indigo-500 resize-none"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <button
+                          onClick={() => handleSearch(q.question, q.angle, null)}
+                          disabled={searching}
+                          className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                        >
+                          인사이트 없이 검색
+                        </button>
+                        <button
+                          onClick={() => handleSearch(q.question, q.angle, pendingQ?.insight?.trim() || null)}
+                          disabled={searching}
+                          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                        >
+                          {searching ? <span className="flex items-center gap-2"><Spinner />검색 중…</span> : '검색 시작 →'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <span className="mt-1 shrink-0 text-xs text-zinc-700 group-hover:text-indigo-400 transition-colors">
-                  검색 →
-                </span>
-              </button>
-            ))}
+              )
+            })}
 
             {/* Custom input */}
             <div className="flex gap-2">
@@ -342,7 +419,7 @@ export function LiteratureDiscoveryPanel({
                   onChange={(e) => setCustomQ(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && customQ.trim()) {
-                      handleSearch(customQ.trim(), '직접 입력')
+                      handleSearch(customQ.trim(), '직접 입력', null)
                     }
                   }}
                   disabled={searching}
@@ -350,7 +427,7 @@ export function LiteratureDiscoveryPanel({
                 />
               </div>
               <button
-                onClick={() => customQ.trim() && handleSearch(customQ.trim(), '직접 입력')}
+                onClick={() => customQ.trim() && handleSearch(customQ.trim(), '직접 입력', null)}
                 disabled={!customQ.trim() || searching}
                 className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
@@ -524,6 +601,11 @@ function SearchRoundCard({
             <p className="mt-0.5 text-xs text-zinc-400 leading-snug line-clamp-1">
               {round.question}
             </p>
+            {round.user_insight && (
+              <p className="mt-0.5 text-[10px] text-amber-500/80 leading-snug line-clamp-1 italic">
+                💡 {round.user_insight}
+              </p>
+            )}
           </div>
         </button>
         <div className="flex items-center gap-2 shrink-0 pl-2">
