@@ -6,8 +6,17 @@ const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Academic Factory',
+  title:       'Academic Factory',
   description: 'AI-powered academic research framework',
+  /** 연구용 배포: 검색 색인·스니펫·캐시 노출 최소화 */
+  robots: {
+    index:  false,
+    follow: false,
+    googleBot: {
+      index:  false,
+      follow: false,
+    },
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
