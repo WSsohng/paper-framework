@@ -34,8 +34,13 @@ export default async function ReferencePapersPage({
   const keyPapers    = papers.filter((p) => p.status === 'key')
   const activePapers = papers.filter((p) => p.status !== 'archived')
 
-  // DOI set for deduplication in discovery panel
-  const existingDois = new Set(papers.map((p) => p.doi).filter(Boolean) as string[])
+  // For discovery panel
+  const existingDois   = new Set(papers.map((p) => p.doi).filter(Boolean) as string[])
+  const existingPapers = papers.map((p) => ({
+    title:   p.title,
+    journal: p.journal,
+    year:    p.year,
+  }))
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
@@ -89,6 +94,7 @@ export default async function ReferencePapersPage({
             projectName={project?.name ?? ''}
             researchIntent={project?.research_intent ?? null}
             existingDois={existingDois}
+            existingPapers={existingPapers}
           />
         ) : (
           <>
