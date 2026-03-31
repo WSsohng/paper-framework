@@ -1,6 +1,7 @@
 'use server'
 
 import OpenAI from 'openai'
+import { AI_PROTOCOL_PREAMBLE } from '@/lib/framework-philosophy'
 
 export interface JournalRecommendation {
   name:           string
@@ -28,7 +29,11 @@ export async function recommendJournals(
 
   const client = new OpenAI({ apiKey })
 
-  const prompt = `You are an expert academic journal consultant with deep knowledge of scientific publishing.
+  const prompt = `${AI_PROTOCOL_PREAMBLE}
+
+---
+
+You are an expert academic journal consultant with deep knowledge of scientific publishing.
 
 Based on the following research project, recommend exactly 10 suitable journals for manuscript submission.
 

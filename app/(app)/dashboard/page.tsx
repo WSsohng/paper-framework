@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { FRAMEWORK_MASTER_INSIGHT } from '@/lib/framework-philosophy'
 import { getProject } from '@/lib/actions/projects'
 import { getTracks } from '@/lib/actions/tracks'
 import { getSelectedProjectId } from '@/lib/selected-project'
@@ -287,6 +288,24 @@ export default async function DashboardPage() {
             />
           </div>
         </div>
+      </div>
+
+      {/* 프레임워크 핵심 (전역 철학 — AI 알고리즘과 동일 원칙) */}
+      <div className="border-b border-zinc-800 bg-zinc-900/30 px-8 py-3">
+        <p className="text-xs text-zinc-500 leading-relaxed max-w-4xl">
+          <span className="font-medium text-indigo-400">
+            {FRAMEWORK_MASTER_INSIGHT.title}
+          </span>
+          <span className="text-zinc-600"> · </span>
+          {FRAMEWORK_MASTER_INSIGHT.splitRatio}
+          <span className="text-zinc-600"> · </span>
+          <Link
+            href="/insights"
+            className="text-indigo-500 hover:text-indigo-400 underline-offset-2 hover:underline"
+          >
+            상세
+          </Link>
+        </p>
       </div>
 
       <div className="flex-1 px-8 py-6 space-y-8">

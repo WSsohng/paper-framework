@@ -1,6 +1,7 @@
 'use server'
 
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { AI_PROTOCOL_PREAMBLE } from '@/lib/framework-philosophy'
 
 export interface TrendItem {
   trend:       string   // trend title (English)
@@ -32,7 +33,11 @@ export async function searchTrends(
   const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
 
-  const prompt = `You are a research trend analyst. Based on your knowledge, analyze the current state and latest trends in the following research area.
+  const prompt = `${AI_PROTOCOL_PREAMBLE}
+
+---
+
+You are a research trend analyst. Based on your knowledge, analyze the current state and latest trends in the following research area.
 
 Project: ${projectName}
 Research Intent: ${researchIntent}

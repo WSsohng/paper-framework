@@ -1,14 +1,7 @@
 import Link from 'next/link'
+import { FRAMEWORK_MASTER_INSIGHT } from '@/lib/framework-philosophy'
 
 export const metadata = { title: 'Framework Insights — Academic Factory' }
-
-// ── Data ─────────────────────────────────────────────────
-
-const MASTER_INSIGHT = {
-  title: '논문의 가치는 AI가 아닌 연구자의 누적된 통찰에서 나온다',
-  body: '이 프레임워크는 AI를 도구로 삼아 연구자의 직관을 구조화하고 증폭시키는 이터레이션 루프다. 매 단계에서 AI는 선택지를 제시하고, 인간은 판단을 내린다. 그 선택들이 축적되어 독창적인 연구가 된다.',
-  principle: 'AI generates options · Humans make judgments · Insights accumulate · Great paper emerges',
-}
 
 type ModuleStatus = 'live' | 'partial' | 'planned'
 
@@ -32,7 +25,7 @@ const modules: ModuleInsight[] = [
     href: '/reference-papers?view=discover',
     status: 'live',
     insight:
-      '결론 방향을 먼저 정한 뒤 문헌을 탐색한다. 키워드가 아니라 전략적 질문으로 접근하면, 탐색 자체가 인사이트를 생성한다.',
+      '연구자의 Intent가 먼저이고, AI가 질문·주제 옵션으로 프로토콜을 가속한다. 키워드가 아닌 전략적 질문으로 탐색하면 인사이트가 쌓인다.',
     howto:
       'Research Intent → AI가 전략적 질문 5개 생성 (인용 영향, 동향, 방법론 비교, 격차 탐색) → 연구자가 선택 + 인사이트 주석 입력 → Semantic Scholar로 실제 논문 검색 → 반복(후속 질문 생성) → 논문 pool이 커지면 AI가 투고 가능한 논문 주제 4개 추천 → 클릭 한 번으로 다음 모듈(Track)로 이행',
     ai: ['Claude (질문/주제 추론)', 'Semantic Scholar (논문 검색)', 'Gemini (최신 동향)'],
@@ -45,7 +38,7 @@ const modules: ModuleInsight[] = [
     href: '/journal',
     status: 'live',
     insight:
-      '저널 선택은 투고 전이 아니라 연구 시작 시점에 한다. 목표 저널이 정해지면 연구의 방향, 깊이, 강조점이 자동으로 결정된다.',
+      '저널 후보와 Fit 분석은 AI가 가속하고, 최종 목표 저널은 연구자가 고른다. 저널이 정해지면 방향·깊이·강조점이 정렬된다.',
     howto:
       'Research Intent → AI가 10개 저널 추천 (Fit Score 순) → 각 저널에 대한 전략적 인사이트 제공 (IF, 범위, 이 연구와의 적합도) → 사용자가 추가/삭제/수정 가능',
     ai: ['Claude / OpenAI (추천 & 인사이트 생성)'],
@@ -138,31 +131,35 @@ export default function InsightsPage() {
             Framework Philosophy
           </p>
           <h1 className="text-2xl font-bold text-zinc-100 leading-snug max-w-2xl">
-            {MASTER_INSIGHT.title}
+            {FRAMEWORK_MASTER_INSIGHT.title}
           </h1>
           <p className="mt-4 text-sm text-zinc-400 leading-relaxed max-w-2xl">
-            {MASTER_INSIGHT.body}
+            {FRAMEWORK_MASTER_INSIGHT.body}
+          </p>
+          <p className="mt-3 text-sm text-zinc-500 leading-relaxed max-w-2xl border-l-2 border-indigo-500/40 pl-4">
+            {FRAMEWORK_MASTER_INSIGHT.split}
+          </p>
+          <p className="mt-2 text-xs text-indigo-400/90 font-medium">
+            {FRAMEWORK_MASTER_INSIGHT.splitRatio}
           </p>
 
-          {/* The Loop */}
+          {/* Protocol loop */}
           <div className="mt-6 flex flex-wrap items-center gap-2">
-            {['AI가 선택지 생성', '연구자가 판단', '인사이트 주석', 'AI가 정제', '반복'].map(
-              (step, i, arr) => (
-                <span key={step} className="flex items-center gap-2">
-                  <span className="rounded-full border border-indigo-500/30 bg-indigo-900/20 px-3 py-1 text-xs text-indigo-300">
-                    {step}
-                  </span>
-                  {i < arr.length - 1 && (
-                    <span className="text-xs text-zinc-700">→</span>
-                  )}
+            {FRAMEWORK_MASTER_INSIGHT.protocolSteps.map((step, i, arr) => (
+              <span key={step} className="flex items-center gap-2">
+                <span className="rounded-full border border-indigo-500/30 bg-indigo-900/20 px-3 py-1 text-xs text-indigo-300">
+                  {step}
                 </span>
-              ),
-            )}
+                {i < arr.length - 1 && (
+                  <span className="text-xs text-zinc-700">→</span>
+                )}
+              </span>
+            ))}
             <span className="text-xs text-indigo-500 ml-1">∞</span>
           </div>
 
           <p className="mt-4 font-mono text-[11px] text-zinc-600">
-            {MASTER_INSIGHT.principle}
+            {FRAMEWORK_MASTER_INSIGHT.principleEn}
           </p>
         </div>
       </div>
@@ -285,6 +282,7 @@ export default function InsightsPage() {
         <div className="rounded-xl border border-indigo-900/30 bg-indigo-950/20 px-5 py-4 mt-6">
           <p className="text-xs font-semibold text-indigo-400 mb-2">다음 개발 우선순위</p>
           <p className="text-sm text-zinc-400 leading-relaxed">
+            상단 철학과 동일하게: AI는 절차 가속, 연구자는 방향·통찰·선택이 주도합니다.
             M0 문헌 탐색(✅) → M1 저널 추천(✅) → 나머지 모듈 AI 기능 순차 구현 예정.
             각 모듈의 AI 기능은 해당 모듈 카드의 &ldquo;미구현&rdquo; 항목을 참고하세요.
           </p>

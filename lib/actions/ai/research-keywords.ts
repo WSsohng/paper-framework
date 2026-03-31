@@ -1,6 +1,7 @@
 'use server'
 
 import OpenAI from 'openai'
+import { AI_PROTOCOL_PREAMBLE } from '@/lib/framework-philosophy'
 
 export interface SearchDirection {
   keyword:   string  // actual search query phrase (English)
@@ -23,7 +24,11 @@ export async function generateSearchKeywords(
 
   const client = new OpenAI({ apiKey })
 
-  const prompt = `You are a research strategist helping plan a systematic literature review.
+  const prompt = `${AI_PROTOCOL_PREAMBLE}
+
+---
+
+You are a research strategist helping plan a systematic literature review.
 
 Project: ${projectName}
 Research Intent: ${researchIntent}

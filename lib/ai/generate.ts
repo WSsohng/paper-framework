@@ -8,6 +8,7 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI    from 'openai'
+import { withFrameworkProtocol } from '@/lib/framework-philosophy'
 
 type AIProvider = 'claude' | 'openai' | 'none'
 
@@ -23,11 +24,12 @@ function getActiveProvider(): AIProvider {
 
 /**
  * Generates structured JSON via the best available AI provider.
- * The prompt should end with clear JSON format instructions.
+ * Prepends FRAMEWORK protocol unless `skipFrameworkProtocol` is true.
  */
 export async function generateJson<T>(
   prompt: string,
   temperature = 0.4,
+  opts?: { skipFrameworkProtocol?: boolean },
 ): Promise<T> {
   const provider = getActiveProvider()
 
@@ -35,9 +37,11 @@ export async function generateJson<T>(
     throw new Error('AI API 키가 설정되지 않았습니다. ANTHROPIC_API_KEY 또는 OPENAI_API_KEY를 설정하세요.')
   }
 
+  const fullPrompt = opts?.skipFrameworkProtocol ? prompt : withFrameworkProtocol(prompt)
+
   const text = provider === 'claude'
-    ? await callClaude(prompt, temperature)
-    : await callOpenAI(prompt, temperature)
+    ? await callClaude(fullPrompt, temperature)
+    : await callOpenAI(fullPrompt, temperature)
 
   return parseJson<T>(text)
 }
