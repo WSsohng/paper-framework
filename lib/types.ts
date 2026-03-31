@@ -1,0 +1,346 @@
+// ============================================================
+// Academic Factory — shared domain types
+// ============================================================
+
+// ── Project (최상위) ──────────────────────────────────────
+
+export type ProjectStatus = 'active' | 'paused' | 'completed' | 'archived'
+
+export interface Project {
+  id: string
+  name: string
+  description: string | null
+  research_intent: string | null
+  status: ProjectStatus
+  tags: string[]
+  created_at: string
+  updated_at: string
+  // aggregated
+  track_count?: number
+}
+
+export interface ProjectInput {
+  name: string
+  description?: string
+  research_intent?: string
+  status?: ProjectStatus
+  tags?: string[]
+}
+
+// ── Module 0: Track ────────────────────────────────────────
+
+export type TrackStatus    = 'active' | 'paused' | 'archived'
+export type TrackRelation  = 'parallel' | 'sequential'
+
+export interface Track {
+  id: string
+  project_id: string | null
+  parent_track_id: string | null
+  relation_type: TrackRelation
+  name: string
+  description: string | null
+  research_intent: string | null
+  color: string
+  status: TrackStatus
+  tags: string[]
+  created_at: string
+  updated_at: string
+  // joined
+  project?: Pick<Project, 'id' | 'name'>
+  parent_track?: Pick<Track, 'id' | 'name'>
+  paper_count?: number
+}
+
+export interface TrackInput {
+  project_id?: string | null
+  parent_track_id?: string | null
+  relation_type?: TrackRelation
+  name: string
+  description?: string
+  research_intent?: string
+  color?: string
+  status?: TrackStatus
+  tags?: string[]
+}
+
+// ── Module 0: Paper (트랙별 분석 논문) ────────────────────
+
+export type PaperStatus = 'unread' | 'reading' | 'read' | 'key' | 'archived'
+
+export interface Paper {
+  id: string
+  track_id: string | null
+  title: string
+  authors: string[]
+  journal: string | null
+  year: number | null
+  doi: string | null
+  abstract: string | null
+  notes: string | null
+  status: PaperStatus
+  tags: string[]
+  created_at: string
+  updated_at: string
+  // joined
+  track?: Pick<Track, 'id' | 'name' | 'color'>
+}
+
+export interface PaperInput {
+  track_id?: string
+  title: string
+  authors?: string[]
+  journal?: string
+  year?: number
+  doi?: string
+  abstract?: string
+  notes?: string
+  status?: PaperStatus
+  tags?: string[]
+}
+
+// ── Module 0: Reference Paper (프로젝트 공유 참고문헌) ────
+
+export interface ReferencePaper {
+  id: string
+  project_id: string
+  title: string
+  authors: string[]
+  journal: string | null
+  year: number | null
+  doi: string | null
+  abstract: string | null
+  notes: string | null
+  status: PaperStatus
+  tags: string[]
+  created_at: string
+  updated_at: string
+  // joined
+  project?: Pick<Project, 'id' | 'name'>
+}
+
+export interface ReferencePaperInput {
+  project_id: string
+  title: string
+  authors?: string[]
+  journal?: string
+  year?: number
+  doi?: string
+  abstract?: string
+  notes?: string
+  status?: PaperStatus
+  tags?: string[]
+}
+
+// ── Module 1: Journal Intel (프로젝트 공유) ───────────────
+
+export type JournalStatus =
+  | 'considering'
+  | 'shortlisted'
+  | 'submitted'
+  | 'accepted'
+  | 'rejected'
+  | 'withdrawn'
+
+export interface Journal {
+  id: string
+  project_id: string | null
+  name: string
+  publisher: string | null
+  issn: string | null
+  impact_factor: number | null
+  scope: string | null
+  website: string | null
+  submission_url: string | null
+  status: JournalStatus
+  notes: string | null
+  tags: string[]
+  created_at: string
+  updated_at: string
+  // joined
+  project?: Pick<Project, 'id' | 'name'>
+}
+
+export interface JournalInput {
+  project_id?: string | null
+  name: string
+  publisher?: string
+  issn?: string
+  impact_factor?: number
+  scope?: string
+  website?: string
+  submission_url?: string
+  status?: JournalStatus
+  notes?: string
+  tags?: string[]
+}
+
+// ── Module 2: Asset Library (프로젝트 공유) ───────────────
+
+export type AssetType = 'quote' | 'figure' | 'table' | 'data' | 'reference' | 'note'
+
+export interface Asset {
+  id: string
+  project_id: string | null
+  type: AssetType
+  title: string
+  content: string | null
+  source: string | null
+  tags: string[]
+  created_at: string
+  updated_at: string
+  project?: Pick<Project, 'id' | 'name'>
+}
+
+export interface AssetInput {
+  project_id?: string | null
+  type?: AssetType
+  title: string
+  content?: string
+  source?: string
+  tags?: string[]
+}
+
+// ── Module 3: Argument Architect (트랙 고유) ──────────────
+
+export type HypothesisStatus = 'draft' | 'active' | 'testing' | 'confirmed' | 'rejected'
+
+export interface Hypothesis {
+  id: string
+  track_id: string | null
+  title: string
+  statement: string | null
+  rationale: string | null
+  status: HypothesisStatus
+  tags: string[]
+  created_at: string
+  updated_at: string
+  track?: Pick<Track, 'id' | 'name' | 'color'>
+}
+
+export interface HypothesisInput {
+  track_id?: string | null
+  title: string
+  statement?: string
+  rationale?: string
+  status?: HypothesisStatus
+  tags?: string[]
+}
+
+// ── Module 4: Draft Factory (트랙 고유) ───────────────────
+
+export type DraftStatus = 'outline' | 'drafting' | 'revising' | 'ready' | 'submitted'
+
+export interface Draft {
+  id: string
+  track_id: string | null
+  journal_id: string | null
+  title: string
+  abstract: string | null
+  body: string | null
+  status: DraftStatus
+  word_count: number | null
+  notes: string | null
+  tags: string[]
+  created_at: string
+  updated_at: string
+  track?: Pick<Track, 'id' | 'name' | 'color'>
+  journal?: Pick<Journal, 'id' | 'name'>
+}
+
+export interface DraftInput {
+  track_id?: string | null
+  journal_id?: string | null
+  title: string
+  abstract?: string
+  body?: string
+  status?: DraftStatus
+  word_count?: number
+  notes?: string
+  tags?: string[]
+}
+
+// ── Module 5: Figure & Data (트랙 고유) ───────────────────
+
+export type FigureType   = 'chart' | 'graph' | 'diagram' | 'table' | 'image' | 'other'
+export type FigureStatus = 'planned' | 'draft' | 'final'
+
+export interface Figure {
+  id: string
+  track_id: string | null
+  draft_id: string | null
+  title: string
+  type: FigureType
+  caption: string | null
+  description: string | null
+  file_url: string | null
+  status: FigureStatus
+  tags: string[]
+  created_at: string
+  updated_at: string
+  track?: Pick<Track, 'id' | 'name' | 'color'>
+  draft?: Pick<Draft, 'id' | 'title'>
+}
+
+export interface FigureInput {
+  track_id?: string | null
+  draft_id?: string | null
+  title: string
+  type?: FigureType
+  caption?: string
+  description?: string
+  file_url?: string
+  status?: FigureStatus
+  tags?: string[]
+}
+
+// ── Module 6: Red Team (트랙 고유) ───────────────────────
+
+export type ReviewSeverity = 'minor' | 'major' | 'critical'
+export type ReviewCategory = 'methodology' | 'clarity' | 'novelty' | 'structure' | 'data' | 'other'
+
+export interface Review {
+  id: string
+  draft_id: string
+  track_id: string | null
+  persona: string | null
+  feedback: string
+  severity: ReviewSeverity
+  category: ReviewCategory
+  resolved: boolean
+  tags: string[]
+  created_at: string
+  updated_at: string
+  draft?: Pick<Draft, 'id' | 'title'>
+  track?: Pick<Track, 'id' | 'name' | 'color'>
+}
+
+export interface ReviewInput {
+  draft_id: string
+  track_id?: string | null
+  persona?: string
+  feedback: string
+  severity?: ReviewSeverity
+  category?: ReviewCategory
+  resolved?: boolean
+  tags?: string[]
+}
+
+// ── Project Dashboard ─────────────────────────────────────
+
+export interface ProjectDashboard {
+  project: Project
+  tracks: (Track & {
+    hypothesis_count: number
+    draft_count: number
+    draft_status: DraftStatus | null
+  })[]
+  total_reference_papers: number
+  total_journals: number
+  total_assets: number
+}
+
+// ── server action result ───────────────────────────────────
+
+export type ActionResult<T = void> =
+  | { success: true; data: T }
+  | { success: false; error: string }

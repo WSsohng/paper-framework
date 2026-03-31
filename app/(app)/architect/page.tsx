@@ -1,0 +1,91 @@
+import Link from 'next/link'
+import { getHypotheses } from '@/lib/actions/hypotheses'
+import { getTracks } from '@/lib/actions/tracks'
+import { getSelectedProjectId } from '@/lib/selected-project'
+import { HypothesisStatusBadge, TagBadge } from '@/components/ui/badge'
+import { HypothesisDialog } from '@/components/module3/hypothesis-dialog'
+import type { HypothesisStatus } from '@/lib/types'
+
+export const metadata = { title: 'Argument Architect — Academic Factory' }
+
+const STATUS_ORDER: HypothesisStatus[] = ['active', 'testing', 'draft', 'confirmed', 'rejected']
+
+export default async function ArchitectPage() {
+  const selectedProjectId = await getSelectedProjectId()
+  const [hypotheses, tracks] = await Promise.all([
+    getHypotheses({ projectId: selectedProjectId ?? undefined }),
+    getTracks(selectedProjectId),
+  ])
+
+  const grouped = STATUS_ORDER.reduce<Record<string, typeof hypotheses>>((acc, s) => {
+    acc[s] = hypotheses.filter((h) => h.status === s)
+    return acc
+  }, {})
+
+  return (
+    <div className="flex flex-1 flex-col overflow-y-auto">
+      <div className="flex items-center justify-between border-b border-zinc-800 px-8 py-5">
+        <div>
+          <h1 className="text-lg font-semibold text-zinc-100">논증 설계</h1>
+          <p className="mt-0.5 text-sm text-zinc-500">{hypotheses.length}개 가설</p>
+        </div>
+        <HypothesisDialog
+          tracks={tracks}
+          trigger={
+            <button className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors">
+              + 새 가설
+            </button>
+          }
+        />
+      </div>
+
+      <div className="flex-1 px-8 py-6">
+        {hypotheses.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <p className="text-sm text-zinc-500">가설이 없습니다.</p>
+            <p className="mt-1 text-xs text-zinc-700">연구의 핵심 논증과 가설을 정의하고 추적하세요.</p>
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {STATUS_ORDER.map((status) => {
+              const group = grouped[status]
+              if (group.length === 0) return null
+              return (
+                <div key={status}>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-zinc-600">
+                    {status} · {group.length}
+                  </p>
+                  <div className="space-y-1.5">
+                    {group.map((h) => (
+                      <Link
+                        key={h.id}
+                        href={`/architect/${h.id}`}
+                        className="group flex items-start gap-4 rounded-lg border border-zinc-800 bg-zinc-900 px-5 py-3.5 hover:border-zinc-700 transition-colors"
+                      >
+                        {h.track ? (
+                          <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: h.track.color }} />
+                        ) : (
+                          <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-zinc-700" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-zinc-200 group-hover:text-zinc-100">{h.title}</p>
+                          {h.statement && <p className="mt-0.5 truncate text-xs text-zinc-600">{h.statement}</p>}
+                          {h.tags.length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {h.tags.map((tag) => <TagBadge key={tag} tag={tag} />)}
+                            </div>
+                          )}
+                        </div>
+                        <HypothesisStatusBadge status={h.status} />
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
