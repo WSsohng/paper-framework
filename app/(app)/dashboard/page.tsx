@@ -270,14 +270,22 @@ export default async function DashboardPage() {
               </p>
             )}
           </div>
-          <ProjectDialog
-            project={project}
-            trigger={
-              <button className="shrink-0 rounded border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:border-zinc-600 hover:text-zinc-300 transition-colors">
-                편집
-              </button>
-            }
-          />
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/insights"
+              className="rounded border border-indigo-800/50 bg-indigo-900/20 px-3 py-1.5 text-xs text-indigo-400 hover:bg-indigo-900/40 hover:text-indigo-300 transition-colors"
+            >
+              ✦ Framework Insights
+            </Link>
+            <ProjectDialog
+              project={project}
+              trigger={
+                <button className="rounded border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:border-zinc-600 hover:text-zinc-300 transition-colors">
+                  편집
+                </button>
+              }
+            />
+          </div>
         </div>
       </div>
 

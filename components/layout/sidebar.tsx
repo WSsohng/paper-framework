@@ -120,8 +120,19 @@ export function Sidebar({ projects, selectedProject }: Props) {
       </nav>
 
       {/* 푸터 */}
-      <div className="shrink-0 border-t border-zinc-800 px-4 py-3">
-        <p className="text-xs text-zinc-700">paper-framework v0.2</p>
+      <div className="shrink-0 border-t border-zinc-800 px-3 py-3 space-y-1">
+        <Link
+          href="/insights"
+          className={`flex h-8 items-center gap-2 rounded-md px-2 text-xs transition-colors ${
+            pathname === '/insights'
+              ? 'bg-zinc-800 text-zinc-200'
+              : 'text-zinc-600 hover:bg-zinc-800/60 hover:text-zinc-400'
+          }`}
+        >
+          <span className="text-indigo-500">✦</span>
+          Framework Insights
+        </Link>
+        <p className="px-2 text-[10px] text-zinc-800">paper-framework v0.2</p>
       </div>
     </aside>
   )
