@@ -7,6 +7,7 @@ import { ReferencePaperDialog } from '@/components/module0/reference-paper-dialo
 import { LiteratureDiscoveryPanel } from '@/components/module0/literature-discovery-panel'
 import { TierSelector } from '@/components/module0/tier-selector'
 import { TierMonitorButton } from '@/components/module0/tier-monitor-button'
+import { ModuleGuideBar } from '@/components/guide/module-guide-bar'
 
 export const metadata = { title: 'Reference Papers — Academic Factory' }
 
@@ -86,6 +87,17 @@ export default async function ReferencePapersPage({
           />
         </div>
       </div>
+
+      {/* M0 가이드 바 */}
+      <ModuleGuideBar
+        moduleTag="M0"
+        activeStepIndex={
+          !project?.research_intent ? 0 :
+          papers.length < 3          ? 2 :
+          tier1Papers.length < 1     ? 4 :
+          undefined
+        }
+      />
 
       {/* View tabs */}
       <div className="flex gap-0 border-b border-zinc-800 px-8">

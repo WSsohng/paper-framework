@@ -7,6 +7,7 @@ import { AssetDialog } from '@/components/module2/asset-dialog'
 import type { Asset, AssetSection, AssetType } from '@/lib/types'
 import { ASSET_SECTION_LABELS } from '@/lib/types'
 import { AssetInsightButton } from '@/components/module2/asset-insight-button'
+import { ModuleGuideBar } from '@/components/guide/module-guide-bar'
 
 export const metadata = { title: 'Asset Library — Academic Factory' }
 
@@ -100,6 +101,16 @@ export default async function AssetsPage({
           />
         </div>
       </div>
+
+      {/* M2 가이드 바 */}
+      <ModuleGuideBar
+        moduleTag="M2"
+        activeStepIndex={
+          assets.length === 0  ? 0 :
+          assets.length < 5    ? 3 :
+          undefined
+        }
+      />
 
       {/* 뷰 탭 */}
       <div className="flex gap-0 border-b border-zinc-800 px-8">

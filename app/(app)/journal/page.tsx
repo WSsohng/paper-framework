@@ -4,6 +4,7 @@ import { getSelectedProjectId } from '@/lib/selected-project'
 import { JournalStatusBadge, TagBadge } from '@/components/ui/badge'
 import { JournalDialog } from '@/components/module1/journal-dialog'
 import { JournalAiPanel } from '@/components/module1/journal-ai-panel'
+import { ModuleGuideBar } from '@/components/guide/module-guide-bar'
 import type { Journal } from '@/lib/types'
 
 export const metadata = { title: 'Journal Intel — Academic Factory' }
@@ -170,6 +171,16 @@ export default async function JournalPage() {
           />
         </div>
       </div>
+
+      {/* M1 가이드 바 */}
+      <ModuleGuideBar
+        moduleTag="M1"
+        activeStepIndex={
+          journals.length === 0 ? 0 :
+          shortlisted.length < 2 ? 3 :
+          shortlisted.length < 3 ? 4 : undefined
+        }
+      />
 
       {/* Research Intent 힌트 */}
       {project && !project.research_intent && (

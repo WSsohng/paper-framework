@@ -1,11 +1,13 @@
 import Link from 'next/link'
 import { FRAMEWORK_MASTER_INSIGHT } from '@/lib/framework-philosophy'
+import { computeGuideState } from '@/lib/guide-engine'
 import { getProject } from '@/lib/actions/projects'
 import { getTracks } from '@/lib/actions/tracks'
 import { getSelectedProjectId } from '@/lib/selected-project'
 import { createClient } from '@/lib/supabase/server'
 import { ProjectStatusBadge, TrackStatusBadge } from '@/components/ui/badge'
 import { ProjectDialog } from '@/components/module0/project-dialog'
+import { GuideCard } from '@/components/guide/guide-card'
 import type { Project, Track } from '@/lib/types'
 
 export const metadata = { title: 'Dashboard — Academic Factory' }
@@ -350,6 +352,11 @@ export default async function DashboardPage() {
   const totalDone    = doneSteps.length
   const progressPct  = Math.round((totalDone / steps.length) * 100)
 
+  const guideState = computeGuideState(progress, {
+    researchIntent: project.research_intent,
+    trackCount:     tracks.length,
+  })
+
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
       {/* 프로젝트 헤더 */}
@@ -406,10 +413,13 @@ export default async function DashboardPage() {
 
       <div className="flex-1 px-8 py-6 space-y-8">
 
+        {/* AI 가이드 카드 */}
+        <GuideCard state={guideState} researchIntent={project.research_intent} />
+
         {/* 지금 해야 할 일 */}
         <div>
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-zinc-200">지금 해야 할 일</h2>
+            <h2 className="text-sm font-semibold text-zinc-200">다음 할 일</h2>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <div className="h-1.5 w-32 rounded-full bg-zinc-800 overflow-hidden">
