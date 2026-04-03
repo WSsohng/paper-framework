@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { FRAMEWORK_MASTER_INSIGHT, MODULE_GUIDE_BASIS } from '@/lib/framework-philosophy'
+import { FRAMEWORK_MASTER_INSIGHT, MODULE_GUIDE_BASIS, MODULE_USAGE_GUIDE } from '@/lib/framework-philosophy'
 
 export const metadata = { title: 'Framework Insights — Academic Factory' }
 
@@ -119,7 +119,12 @@ const STATUS_CONFIG: Record<ModuleStatus, { label: string; color: string; dot: s
 
 // ── Page ─────────────────────────────────────────────────
 
-export default function InsightsPage() {
+export default async function InsightsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>
+}) {
+  const { tab } = await searchParams
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
       {/* ── Hero ──────────────────────────────────────── */}
@@ -200,7 +205,45 @@ export default function InsightsPage() {
         </div>
       </div>
 
-      {/* ── Module Cards ──────────────────────────────── */}
+      {/* ── 탭 네비게이션 ──────────────────────────────── */}
+      <div className="flex gap-0 border-b border-zinc-800 px-8">
+        <Link
+          href="/insights"
+          className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            !tab
+              ? 'border-indigo-500 text-indigo-300'
+              : 'border-transparent text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          설계도
+          <span className="ml-1.5 text-[10px] text-zinc-600">핵심 인사이트</span>
+        </Link>
+        <Link
+          href="/insights?tab=guide"
+          className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            tab === 'guide'
+              ? 'border-indigo-500 text-indigo-300'
+              : 'border-transparent text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          사용 설명서
+          <span className="ml-1.5 text-[10px] text-zinc-600">단계별 가이드</span>
+        </Link>
+        <Link
+          href="/insights?tab=basis"
+          className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            tab === 'basis'
+              ? 'border-indigo-500 text-indigo-300'
+              : 'border-transparent text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          가이드 기준
+          <span className="ml-1.5 text-[10px] text-zinc-600">AI 입력 정의</span>
+        </Link>
+      </div>
+
+      {/* ── Module Cards (설계도 탭) ───────────────────── */}
+      {(!tab || tab === 'design') && (
       <div className="flex-1 px-8 py-6 space-y-4">
         {modules.map((mod) => {
           const cfg = STATUS_CONFIG[mod.status]
@@ -278,13 +321,111 @@ export default function InsightsPage() {
           )
         })}
 
-        {/* ── Guide Basis (가이드의 가이드) ──────────── */}
-        <div className="mt-8">
-          <div className="mb-4">
-            <h2 className="text-sm font-semibold text-zinc-200">가이드의 가이드</h2>
-            <p className="mt-1 text-xs text-zinc-500">
-              각 모듈에서 AI가 어떤 정보를 기반으로 가이드를 제공하는지 정의합니다.
-              <span className="ml-1 text-zinc-700">→ 프롬프트 수정 시 이 기준을 참고하세요.</span>
+      </div>
+      )}
+
+      {/* ── 사용 설명서 탭 ─────────────────────────────── */}
+      {tab === 'guide' && (
+        <div className="flex-1 px-8 py-6 space-y-3">
+          <div className="mb-5">
+            <p className="text-sm text-zinc-400 leading-relaxed">
+              각 모듈에서 <strong className="text-zinc-200">무엇을</strong>, <strong className="text-zinc-200">어떤 순서로</strong>,{' '}
+              <strong className="text-zinc-200">누가(AI·연구자)</strong> 하는지 단계별로 정의합니다.
+            </p>
+            <p className="mt-1 text-xs text-zinc-600">
+              이 내용은 <code className="text-zinc-500">lib/framework-philosophy.ts</code> →{' '}
+              <code className="text-zinc-500">MODULE_USAGE_GUIDE</code>에서 수정할 수 있으며, 수정 시 AI 가이드 동작에도 반영됩니다.
+            </p>
+          </div>
+
+          {MODULE_USAGE_GUIDE.map((guide) => (
+            <div
+              key={guide.tag}
+              className="rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden"
+            >
+              {/* 모듈 헤더 */}
+              <div className="flex items-center justify-between border-b border-zinc-800/60 bg-zinc-900/80 px-5 py-3">
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-xs font-bold text-indigo-400">{guide.tag}</span>
+                  <h2 className="text-sm font-semibold text-zinc-200">{guide.name}</h2>
+                </div>
+                <Link href={guide.href} className="text-xs text-zinc-600 hover:text-indigo-400 transition-colors">
+                  열기 →
+                </Link>
+              </div>
+
+              <div className="px-5 py-4 space-y-4">
+                {/* 시작 조건 */}
+                <div className="flex items-start gap-3 rounded-lg bg-zinc-800/30 px-4 py-3">
+                  <span className="shrink-0 mt-0.5 text-[10px] font-bold tracking-wider text-amber-500 uppercase">시작 조건</span>
+                  <p className="text-xs text-zinc-400 leading-relaxed">{guide.trigger}</p>
+                </div>
+
+                {/* 단계별 흐름 */}
+                <div>
+                  <p className="mb-2.5 text-[10px] font-semibold tracking-wider text-zinc-600 uppercase">핵심 흐름</p>
+                  <ol className="space-y-2">
+                    {guide.steps.map((step, i) => (
+                      <li key={i} className="flex items-start gap-3">
+                        <span className="shrink-0 flex items-center gap-1.5">
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-700 text-[10px] font-mono text-zinc-500">
+                            {i + 1}
+                          </span>
+                          <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                            step.by === 'ai'
+                              ? 'bg-indigo-950/60 text-indigo-400 border border-indigo-800/60'
+                              : step.by === 'human'
+                              ? 'bg-emerald-950/60 text-emerald-500 border border-emerald-800/60'
+                              : 'bg-zinc-800/60 text-zinc-400 border border-zinc-700/60'
+                          }`}>
+                            {step.by === 'ai' ? 'AI' : step.by === 'human' ? '연구자' : 'AI+연구자'}
+                          </span>
+                        </span>
+                        <div className="min-w-0">
+                          <span className="text-xs font-medium text-zinc-300">{step.label}</span>
+                          <p className="mt-0.5 text-xs text-zinc-500 leading-snug">{step.desc}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {/* 완료 기준 */}
+                  <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/40 px-4 py-3">
+                    <p className="mb-1.5 text-[10px] font-semibold tracking-wider text-emerald-600 uppercase">완료 기준</p>
+                    <p className="text-xs text-zinc-400 leading-relaxed">{guide.done_when}</p>
+                  </div>
+                  {/* 실전 팁 */}
+                  <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/40 px-4 py-3">
+                    <p className="mb-1.5 text-[10px] font-semibold tracking-wider text-amber-600 uppercase">실전 팁</p>
+                    <ul className="space-y-1.5">
+                      {guide.tips.map((tip, i) => (
+                        <li key={i} className="flex items-start gap-1.5 text-xs text-zinc-500 leading-snug">
+                          <span className="shrink-0 mt-0.5 text-amber-700">·</span>
+                          {tip}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── 가이드 기준 탭 ─────────────────────────────── */}
+      {tab === 'basis' && (
+        <div className="flex-1 px-8 py-6">
+          <div className="mb-5">
+            <p className="text-sm text-zinc-400 leading-relaxed">
+              각 모듈에서 AI가 어떤 정보를 <strong className="text-zinc-200">기반으로</strong> 가이드를 제공하는지 정의합니다.
+            </p>
+            <p className="mt-1 text-xs text-zinc-600">
+              이 정보는 <code className="text-zinc-500">lib/framework-philosophy.ts</code> →{' '}
+              <code className="text-zinc-500">MODULE_GUIDE_BASIS</code>에서 수정합니다.
+              프롬프트 수정 시 이 기준을 참고하세요.
             </p>
           </div>
           <div className="space-y-2">
@@ -318,17 +459,7 @@ export default function InsightsPage() {
             ))}
           </div>
         </div>
-
-        {/* Footer note */}
-        <div className="rounded-xl border border-indigo-900/30 bg-indigo-950/20 px-5 py-4 mt-6">
-          <p className="text-xs font-semibold text-indigo-400 mb-2">다음 개발 우선순위</p>
-          <p className="text-sm text-zinc-400 leading-relaxed">
-            상단 철학과 동일하게: AI는 절차 가속, 연구자는 방향·통찰·선택이 주도합니다.
-            M0 문헌 탐색(✅) → M1 저널 추천(✅) → 나머지 모듈 AI 기능 순차 구현 예정.
-            각 모듈의 AI 기능은 해당 모듈 카드의 &ldquo;미구현&rdquo; 항목을 참고하세요.
-          </p>
-        </div>
-      </div>
+      )}
     </div>
   )
 }
