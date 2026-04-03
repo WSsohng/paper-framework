@@ -3,6 +3,12 @@
 import OpenAI from 'openai'
 import { AI_PROTOCOL_PREAMBLE } from '@/lib/framework-philosophy'
 
+export type FitLevel = 'optimal' | 'adequate' | 'insufficient' | 'excessive'
+// optimal    = 범위·수준 딱 맞음
+// adequate   = 투고 가능하나 약간 아쉬운 부분 있음
+// insufficient = 연구 수준/범위가 이 저널 기대치에 미치지 못함
+// excessive  = 저널이 이 연구보다 훨씬 넓은 범위를 요구 (over-scoped)
+
 export interface JournalRecommendation {
   name:           string
   publisher:      string
@@ -10,7 +16,9 @@ export interface JournalRecommendation {
   issn:           string | null
   scope:          string
   insight:        string
-  fit_score:      number  // 0–100
+  fit_score:      number     // 0–100
+  fit_level:      FitLevel   // 적절/부족/과잉 판단
+  fit_reason:     string     // 왜 이 fit_level인지 (Korean, 1-2 sentences)
   website:        string | null
 }
 
@@ -54,11 +62,19 @@ Return ONLY a valid JSON array with exactly 10 objects in this structure:
     "impact_factor": 15.2,
     "issn": "1234-5678",
     "scope": "2–3 sentence description of what this journal covers",
-    "insight": "1–2 sentence explanation of exactly why this journal fits this specific research, referencing the research intent",
+    "insight": "1–2 sentence explanation of why this journal fits this specific research",
     "fit_score": 92,
+    "fit_level": "optimal | adequate | insufficient | excessive",
+    "fit_reason": "Korean: 1-2 sentences on exactly why this fit level — e.g. 연구 범위가 저널이 요구하는 수준보다 좁아 보완이 필요합니다.",
     "website": "https://..."
   }
 ]
+
+fit_level rules:
+- optimal: scope, depth, novelty all well-matched
+- adequate: publishable but researcher should strengthen 1-2 aspects
+- insufficient: the research as described doesn't meet the journal's expectations (scope too narrow, novelty insufficient, etc.)
+- excessive: the journal covers much broader territory than this specific research
 
 Order by fit_score descending. No markdown, no explanation — pure JSON only.`
 

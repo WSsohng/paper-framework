@@ -2,9 +2,12 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getTrack } from '@/lib/actions/tracks'
 import { getPapers } from '@/lib/actions/papers'
-import { TrackStatusBadge, PaperStatusBadge, TagBadge } from '@/components/ui/badge'
+import { getProject } from '@/lib/actions/projects'
+import { getReferencePapers } from '@/lib/actions/reference-papers'
+import { TrackStatusBadge, TrackStageBadge, PaperStatusBadge, TagBadge } from '@/components/ui/badge'
 import { TrackDialog } from '@/components/module0/track-dialog'
 import { PaperDialog } from '@/components/module0/paper-dialog'
+import { TimelinessPanel } from '@/components/module0/timeliness-panel'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -21,6 +24,13 @@ export default async function TrackDetailPage({
   const [track, papers] = await Promise.all([getTrack(id), getPapers(id)])
 
   if (!track) notFound()
+
+  // 시의성 패널을 위한 데이터
+  const project = track.project_id ? await getProject(track.project_id) : null
+  const refPapers = track.project_id ? await getReferencePapers(track.project_id) : []
+  const tier1Papers = refPapers
+    .filter((p) => p.tier === 1)
+    .map((p) => ({ title: p.title, year: p.year, journal: p.journal }))
 
   const statusGroups = {
     key:      papers.filter((p) => p.status === 'key'),
@@ -41,12 +51,24 @@ export default async function TrackDetailPage({
               style={{ backgroundColor: track.color }}
             />
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-lg font-semibold text-zinc-100">{track.name}</h1>
                 <TrackStatusBadge status={track.status} />
+                <TrackStageBadge stage={track.current_stage} />
               </div>
               {track.description && (
                 <p className="mt-1 text-sm text-zinc-500">{track.description}</p>
+              )}
+              {/* 실험 일정 요약 */}
+              {(track.experiment_start_date || track.target_submit_date) && (
+                <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-zinc-600">
+                  {track.experiment_start_date && (
+                    <span>실험 시작: <span className="text-zinc-400">{track.experiment_start_date}</span></span>
+                  )}
+                  {track.target_submit_date && (
+                    <span>투고 목표: <span className="text-amber-400 font-medium">{track.target_submit_date}</span></span>
+                  )}
+                </div>
               )}
               {track.tags.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1">
@@ -81,6 +103,29 @@ export default async function TrackDetailPage({
           <span>읽는중 {statusGroups.reading.length}</span>
           <span>미읽음 {statusGroups.unread.length}</span>
         </div>
+      </div>
+
+      {/* 시의성 & Flow 패널 */}
+      <div className="border-b border-zinc-800 px-8 py-5">
+        <details className="group">
+          <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium text-zinc-400 hover:text-zinc-300 transition-colors select-none">
+            <span className="text-indigo-500 text-xs">◆</span>
+            시의성 · 실험 일정 · 논문 작성 단계
+            <span className="ml-1 text-xs text-zinc-700 group-open:hidden">펼치기</span>
+            <span className="ml-1 text-xs text-zinc-700 hidden group-open:inline">접기</span>
+          </summary>
+          <div className="mt-4">
+            <TimelinessPanel
+              trackId={track.id}
+              projectName={project?.name ?? ''}
+              researchIntent={project?.research_intent ?? track.research_intent ?? ''}
+              tier1Papers={tier1Papers}
+              experimentStartDate={track.experiment_start_date}
+              targetSubmitDate={track.target_submit_date}
+              currentStage={track.current_stage}
+            />
+          </div>
+        </details>
       </div>
 
       {/* Papers */}

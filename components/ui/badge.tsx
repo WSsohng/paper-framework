@@ -1,7 +1,9 @@
 import {
   type PaperStatus,
+  type PaperTier,
   type ProjectStatus,
   type TrackStatus,
+  type TrackStage,
   type JournalStatus,
   type AssetType,
   type HypothesisStatus,
@@ -11,6 +13,7 @@ import {
   type ReviewSeverity,
   type ReviewCategory,
 } from '@/lib/types'
+import type { FitLevel } from '@/lib/actions/ai/journal-recommendations'
 
 const projectStatusConfig: Record<ProjectStatus, { label: string; className: string }> = {
   active:    { label: '진행중',   className: 'bg-emerald-950 text-emerald-400' },
@@ -211,3 +214,74 @@ export function ReviewCategoryBadge({ category }: { category: ReviewCategory }) 
     </span>
   )
 }
+
+// ── 참고문헌 티어 ─────────────────────────────────────────
+
+const tierConfig: Record<PaperTier, { label: string; className: string; dot: string; desc: string }> = {
+  1: { label: 'T1',  className: 'bg-red-950 text-red-400 border border-red-800/50',       dot: 'bg-red-400',    desc: '경쟁 논문 (accept 위험)' },
+  2: { label: 'T2',  className: 'bg-amber-950 text-amber-400 border border-amber-800/50', dot: 'bg-amber-400',  desc: '핵심 근거 (추론 레퍼런스)' },
+  3: { label: 'T3',  className: 'bg-zinc-800 text-zinc-400 border border-zinc-700/50',    dot: 'bg-zinc-500',   desc: '거시적 흐름 (서론·배경)' },
+}
+
+export function PaperTierBadge({ tier }: { tier: PaperTier | null }) {
+  if (!tier) return null
+  const cfg = tierConfig[tier]
+  return (
+    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-bold ${cfg.className}`}>
+      {cfg.label}
+    </span>
+  )
+}
+
+export function PaperTierDot({ tier }: { tier: PaperTier | null }) {
+  if (!tier) return <span className="h-2 w-2 rounded-full bg-zinc-700" />
+  return <span className={`h-2 w-2 rounded-full ${tierConfig[tier].dot}`} />
+}
+
+export const PAPER_TIER_DESC = tierConfig
+
+// ── 저널 Fit Level ────────────────────────────────────────
+
+const fitLevelConfig: Record<FitLevel, { label: string; className: string }> = {
+  optimal:      { label: '최적',   className: 'bg-emerald-950 text-emerald-400 border border-emerald-800/50' },
+  adequate:     { label: '적절',   className: 'bg-blue-950 text-blue-400 border border-blue-800/50' },
+  insufficient: { label: '부족',   className: 'bg-amber-950 text-amber-400 border border-amber-800/50' },
+  excessive:    { label: '과잉',   className: 'bg-violet-950 text-violet-400 border border-violet-800/50' },
+}
+
+export function FitLevelBadge({ level }: { level: FitLevel }) {
+  const cfg = fitLevelConfig[level]
+  return (
+    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ${cfg.className}`}>
+      {cfg.label}
+    </span>
+  )
+}
+
+// ── Track Stage ───────────────────────────────────────────
+
+const trackStageConfig: Record<TrackStage, { label: string; by: 'ai' | 'human'; className: string }> = {
+  hypothesis:        { label: 'AI 가설 수립',      by: 'ai',    className: 'text-indigo-400' },
+  experiment_design: { label: 'AI 실험 설계',      by: 'ai',    className: 'text-indigo-400' },
+  experiment:        { label: '실험 진행',          by: 'human', className: 'text-amber-400' },
+  validation:        { label: 'AI 실험값 검증',     by: 'ai',    className: 'text-indigo-400' },
+  backup_design:     { label: 'AI 백업 실험 설계',  by: 'ai',    className: 'text-indigo-400' },
+  backup_experiment: { label: '백업 실험 진행',     by: 'human', className: 'text-amber-400' },
+  figures:           { label: 'AI Figure 작성',     by: 'ai',    className: 'text-indigo-400' },
+  draft:             { label: 'AI 초고 작성',       by: 'ai',    className: 'text-indigo-400' },
+  review:            { label: '레드팀 검수',         by: 'human', className: 'text-zinc-300' },
+  submitted:         { label: '제출 완료',           by: 'human', className: 'text-emerald-400' },
+}
+
+export function TrackStageBadge({ stage }: { stage: TrackStage | null }) {
+  if (!stage) return null
+  const cfg = trackStageConfig[stage]
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border border-zinc-700/50 bg-zinc-800/60 px-2 py-0.5 text-[11px] font-medium ${cfg.className}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${cfg.by === 'ai' ? 'bg-indigo-500' : 'bg-amber-500'}`} />
+      {cfg.label}
+    </span>
+  )
+}
+
+export const TRACK_STAGE_CONFIG = trackStageConfig

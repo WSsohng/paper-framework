@@ -32,6 +32,26 @@ export interface ProjectInput {
 export type TrackStatus    = 'active' | 'paused' | 'archived'
 export type TrackRelation  = 'parallel' | 'sequential'
 
+/** 논문 작성 Flow 단계 — AI/인간 역할 구분 */
+export type TrackStage =
+  | 'hypothesis'        // AI: 가설 수립
+  | 'experiment_design' // AI: 코어 실험 설계
+  | 'experiment'        // 인간: 실험 진행
+  | 'validation'        // AI: 실험값 검증·재설계
+  | 'backup_design'     // AI: 백업 실험 설계
+  | 'backup_experiment' // 인간: 백업 실험
+  | 'figures'           // AI: Figure·Table 작성
+  | 'draft'             // AI: 논문 초고 작성
+  | 'review'            // AI+인간: 레드팀·검수
+  | 'submitted'         // 제출 완료
+
+export interface TrackContextEntry {
+  timestamp: string
+  stage:     TrackStage | null
+  note:      string   // 결정 내용 or 인사이트
+  by:        'ai' | 'human'
+}
+
 export interface Track {
   id: string
   project_id: string | null
@@ -42,6 +62,10 @@ export interface Track {
   research_intent: string | null
   color: string
   status: TrackStatus
+  current_stage: TrackStage | null
+  experiment_start_date: string | null
+  target_submit_date: string | null
+  context_log: TrackContextEntry[]
   tags: string[]
   created_at: string
   updated_at: string
@@ -60,6 +84,10 @@ export interface TrackInput {
   research_intent?: string
   color?: string
   status?: TrackStatus
+  current_stage?: TrackStage | null
+  experiment_start_date?: string | null
+  target_submit_date?: string | null
+  context_log?: TrackContextEntry[]
   tags?: string[]
 }
 
@@ -100,6 +128,14 @@ export interface PaperInput {
 
 // ── Module 0: Reference Paper (프로젝트 공유 참고문헌) ────
 
+/**
+ * 참고문헌 티어:
+ * 1 = 매우 밀접 (accept에 직접 영향 가능)
+ * 2 = 핵심 근거 (추론 레퍼런스)
+ * 3 = 거시적 흐름 (서론·배경)
+ */
+export type PaperTier = 1 | 2 | 3
+
 export interface ReferencePaper {
   id: string
   project_id: string
@@ -111,6 +147,7 @@ export interface ReferencePaper {
   abstract: string | null
   notes: string | null
   status: PaperStatus
+  tier: PaperTier | null
   tags: string[]
   created_at: string
   updated_at: string
@@ -128,6 +165,7 @@ export interface ReferencePaperInput {
   abstract?: string
   notes?: string
   status?: PaperStatus
+  tier?: PaperTier | null
   tags?: string[]
 }
 

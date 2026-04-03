@@ -44,6 +44,7 @@ export async function createReferencePaper(
       abstract:   input.abstract  ?? null,
       notes:      input.notes     ?? null,
       status:     input.status    ?? 'unread',
+      tier:       input.tier      ?? null,
       tags:       input.tags      ?? [],
     })
     .select()

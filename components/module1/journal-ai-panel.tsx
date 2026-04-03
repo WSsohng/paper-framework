@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { recommendJournals, type JournalRecommendation } from '@/lib/actions/ai/journal-recommendations'
 import { createJournal } from '@/lib/actions/journals'
+import { FitLevelBadge } from '@/components/ui/badge'
 
 interface Props {
   projectName:     string
@@ -211,7 +212,7 @@ export function JournalAiPanel({ projectName, researchIntent, projectId, existin
                           </div>
                         </div>
 
-                        {/* Fit score */}
+                        {/* Fit score + level */}
                         <div className="mt-3 flex items-center gap-2">
                           <div className="h-1 flex-1 rounded-full bg-zinc-800 overflow-hidden">
                             <div
@@ -222,7 +223,13 @@ export function JournalAiPanel({ projectName, researchIntent, projectId, existin
                           <span className="shrink-0 text-[10px] text-zinc-500">
                             적합도 {j.fit_score}%
                           </span>
+                          {j.fit_level && <FitLevelBadge level={j.fit_level} />}
                         </div>
+                        {j.fit_reason && (
+                          <p className="mt-1.5 text-[11px] text-zinc-600 leading-relaxed">
+                            {j.fit_reason}
+                          </p>
+                        )}
 
                         {/* Insight */}
                         <p className="mt-2.5 text-xs leading-relaxed text-zinc-400 border-t border-zinc-800 pt-2.5">

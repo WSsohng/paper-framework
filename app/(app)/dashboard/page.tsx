@@ -13,24 +13,28 @@ export const metadata = { title: 'Dashboard — Academic Factory' }
 // ── 진행 데이터 fetch ─────────────────────────────────────
 
 interface Progress {
-  refPaperCount:   number
-  keyPaperCount:   number
-  journalCount:    number
-  shortlistedCount: number
-  assetCount:      number
-  hypothesisCount: number
+  refPaperCount:         number
+  keyPaperCount:         number
+  tier1Count:            number
+  tier2Count:            number
+  journalCount:          number
+  shortlistedCount:      number
+  assetCount:            number
+  hypothesisCount:       number
   activeHypothesisCount: number
-  draftCount:      number
-  readyDraftCount: number
-  figureCount:     number
-  reviewCount:     number
+  draftCount:            number
+  readyDraftCount:       number
+  figureCount:           number
+  finalFigureCount:      number
+  reviewCount:           number
+  resolvedReviewCount:   number
 }
 
 async function fetchProgress(projectId: string, trackIds: string[]): Promise<Progress> {
   const supabase = await createClient()
 
   const [refPapers, journals, assets, hypotheses, drafts, figures, reviews] = await Promise.all([
-    supabase.from('reference_papers').select('status').eq('project_id', projectId),
+    supabase.from('reference_papers').select('status, tier').eq('project_id', projectId),
     supabase.from('journals').select('status').eq('project_id', projectId),
     supabase.from('assets').select('id', { count: 'exact', head: true }).eq('project_id', projectId),
     trackIds.length > 0
@@ -40,31 +44,121 @@ async function fetchProgress(projectId: string, trackIds: string[]): Promise<Pro
       ? supabase.from('drafts').select('id, status').in('track_id', trackIds)
       : Promise.resolve({ data: [] as { id: string; status: string }[] }),
     trackIds.length > 0
-      ? supabase.from('figures').select('id', { count: 'exact', head: true }).in('track_id', trackIds)
-      : Promise.resolve({ count: 0 }),
+      ? supabase.from('figures').select('status').in('track_id', trackIds)
+      : Promise.resolve({ data: [] as { status: string }[] }),
     trackIds.length > 0
-      ? supabase.from('reviews').select('id', { count: 'exact', head: true }).in('track_id', trackIds)
-      : Promise.resolve({ count: 0 }),
+      ? supabase.from('reviews').select('resolved').in('track_id', trackIds)
+      : Promise.resolve({ data: [] as { resolved: boolean }[] }),
   ])
 
   const rp = refPapers.data ?? []
   const jr = journals.data ?? []
   const hy = hypotheses.data ?? []
   const dr = drafts.data ?? []
+  const fg = figures.data ?? []
+  const rv = reviews.data ?? []
 
   return {
-    refPaperCount:        rp.length,
-    keyPaperCount:        rp.filter((p) => p.status === 'key').length,
-    journalCount:         jr.length,
-    shortlistedCount:     jr.filter((j) => j.status === 'shortlisted' || j.status === 'submitted' || j.status === 'accepted').length,
-    assetCount:           (assets as { count: number }).count ?? 0,
-    hypothesisCount:      hy.length,
+    refPaperCount:         rp.length,
+    keyPaperCount:         rp.filter((p) => p.status === 'key').length,
+    tier1Count:            rp.filter((p) => p.tier === 1).length,
+    tier2Count:            rp.filter((p) => p.tier === 2).length,
+    journalCount:          jr.length,
+    shortlistedCount:      jr.filter((j) => j.status === 'shortlisted' || j.status === 'submitted' || j.status === 'accepted').length,
+    assetCount:            (assets as { count: number }).count ?? 0,
+    hypothesisCount:       hy.length,
     activeHypothesisCount: hy.filter((h) => h.status === 'active' || h.status === 'testing' || h.status === 'confirmed').length,
-    draftCount:           dr.length,
-    readyDraftCount:      dr.filter((d) => d.status === 'ready' || d.status === 'submitted').length,
-    figureCount:          (figures as { count: number }).count ?? 0,
-    reviewCount:          (reviews as { count: number }).count ?? 0,
+    draftCount:            dr.length,
+    readyDraftCount:       dr.filter((d) => d.status === 'ready' || d.status === 'submitted').length,
+    figureCount:           fg.length,
+    finalFigureCount:      fg.filter((f) => f.status === 'final').length,
+    reviewCount:           rv.length,
+    resolvedReviewCount:   rv.filter((r) => r.resolved).length,
   }
+}
+
+// ── 단계별 충실도 점수 (Publication Readiness) ────────────
+// 각 단계 0-100점, 전체 평균 = 종합 Readiness
+
+interface StageReadiness {
+  module:    string
+  label:     string
+  score:     number   // 0–100
+  detail:    string
+  href:      string
+}
+
+function calcReadiness(p: Progress): StageReadiness[] {
+  return [
+    {
+      module: 'M0',
+      label:  '문헌 탐색',
+      score:  Math.min(100, Math.round(
+        (Math.min(p.refPaperCount, 15) / 15) * 50 +  // 수량 (15편 = 50점)
+        (Math.min(p.tier1Count, 3)    /  3) * 30 +  // T1 분류 (3편 = 30점)
+        (Math.min(p.tier2Count, 5)    /  5) * 20    // T2 분류 (5편 = 20점)
+      )),
+      detail: `${p.refPaperCount}편 · T1 ${p.tier1Count}편 · T2 ${p.tier2Count}편`,
+      href: '/reference-papers',
+    },
+    {
+      module: 'M1',
+      label:  '저널 전략',
+      score:  Math.min(100, Math.round(
+        (Math.min(p.journalCount, 3)      / 3) * 40 +  // 저널 수집 (3개 = 40점)
+        (Math.min(p.shortlistedCount, 2)  / 2) * 60    // shortlist 확정 (2개 = 60점)
+      )),
+      detail: `${p.journalCount}개 검토 · ${p.shortlistedCount}개 후보 확정`,
+      href: '/journal',
+    },
+    {
+      module: 'M2',
+      label:  '자산 수집',
+      score:  Math.min(100, Math.round((Math.min(p.assetCount, 10) / 10) * 100)),
+      detail: `${p.assetCount}개 자산`,
+      href: '/assets',
+    },
+    {
+      module: 'M3',
+      label:  '가설·논증',
+      score:  Math.min(100, Math.round(
+        (Math.min(p.hypothesisCount, 3)      / 3) * 40 +
+        (Math.min(p.activeHypothesisCount, 1) / 1) * 60
+      )),
+      detail: `${p.hypothesisCount}개 가설 · ${p.activeHypothesisCount}개 활성`,
+      href: '/architect',
+    },
+    {
+      module: 'M4',
+      label:  '초고 작성',
+      score:  Math.min(100, Math.round(
+        (Math.min(p.draftCount, 1)      / 1) * 50 +
+        (Math.min(p.readyDraftCount, 1) / 1) * 50
+      )),
+      detail: `${p.draftCount}개 초고 · ${p.readyDraftCount}개 제출 준비`,
+      href: '/draft',
+    },
+    {
+      module: 'M5',
+      label:  '도표·데이터',
+      score:  Math.min(100, Math.round(
+        (Math.min(p.figureCount, 4)      / 4) * 50 +
+        (Math.min(p.finalFigureCount, 2) / 2) * 50
+      )),
+      detail: `${p.figureCount}개 계획 · ${p.finalFigureCount}개 최종본`,
+      href: '/figures',
+    },
+    {
+      module: 'M6',
+      label:  '레드팀',
+      score:  Math.min(100, Math.round(
+        (Math.min(p.reviewCount, 5)          / 5) * 40 +
+        (Math.min(p.resolvedReviewCount, 5)  / 5) * 60
+      )),
+      detail: `${p.reviewCount}개 리뷰 · ${p.resolvedReviewCount}개 해결`,
+      href: '/redteam',
+    },
+  ]
 }
 
 // ── 단계 정의 ─────────────────────────────────────────────
@@ -243,10 +337,12 @@ export default async function DashboardPage() {
     )
   }
 
-  const trackIds = tracks.map((t) => t.id)
-  const progress = await fetchProgress(selectedProjectId, trackIds)
-  const steps    = buildSteps(progress, tracks, project.research_intent)
-  const pipeline = getPipelineStatus(steps)
+  const trackIds  = tracks.map((t) => t.id)
+  const progress  = await fetchProgress(selectedProjectId, trackIds)
+  const steps     = buildSteps(progress, tracks, project.research_intent)
+  const pipeline  = getPipelineStatus(steps)
+  const readiness = calcReadiness(progress)
+  const overallReadiness = Math.round(readiness.reduce((s, r) => s + r.score, 0) / readiness.length)
 
   const doneSteps    = steps.filter((s) => s.done)
   const pendingSteps = steps.filter((s) => !s.done)
@@ -429,6 +525,51 @@ export default async function DashboardPage() {
             </div>
           </div>
         )}
+
+        {/* 단계별 충실도 (Publication Readiness) */}
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-200">단계별 충실도</h2>
+              <p className="mt-0.5 text-xs text-zinc-600">각 단계가 얼마나 충실하게 이행되었는지 평가</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-full border-2 border-indigo-700 flex items-center justify-center">
+                <span className="text-[10px] font-bold text-indigo-400">{overallReadiness}</span>
+              </div>
+              <span className="text-xs text-zinc-500">종합</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-7 gap-1.5">
+            {readiness.map((r) => (
+              <a key={r.module} href={r.href} className="group rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-3 hover:border-zinc-700 transition-colors">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-bold text-zinc-600 group-hover:text-zinc-500">{r.module}</span>
+                  <span className={`text-[10px] font-bold ${
+                    r.score >= 80 ? 'text-emerald-400' :
+                    r.score >= 50 ? 'text-amber-400'   :
+                    r.score >  0  ? 'text-indigo-400'  :
+                                    'text-zinc-700'
+                  }`}>{r.score}</span>
+                </div>
+                {/* Score bar */}
+                <div className="h-1 w-full rounded-full bg-zinc-800 overflow-hidden mb-2">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      r.score >= 80 ? 'bg-emerald-500' :
+                      r.score >= 50 ? 'bg-amber-500'   :
+                      r.score >  0  ? 'bg-indigo-500'  :
+                                      'bg-zinc-700'
+                    }`}
+                    style={{ width: `${r.score}%` }}
+                  />
+                </div>
+                <p className="text-[9px] leading-tight text-zinc-600 group-hover:text-zinc-500 whitespace-pre-line">{r.label}</p>
+                <p className="mt-1 text-[9px] text-zinc-700 hidden group-hover:block">{r.detail}</p>
+              </a>
+            ))}
+          </div>
+        </div>
 
         {/* 모듈 파이프라인 */}
         <div>

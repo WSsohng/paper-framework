@@ -2,9 +2,11 @@ import Link from 'next/link'
 import { getReferencePapers } from '@/lib/actions/reference-papers'
 import { getProject } from '@/lib/actions/projects'
 import { getSelectedProjectId } from '@/lib/selected-project'
-import { PaperStatusBadge, TagBadge } from '@/components/ui/badge'
+import { PaperStatusBadge, PaperTierBadge, TagBadge, PAPER_TIER_DESC } from '@/components/ui/badge'
 import { ReferencePaperDialog } from '@/components/module0/reference-paper-dialog'
 import { LiteratureDiscoveryPanel } from '@/components/module0/literature-discovery-panel'
+import { TierSelector } from '@/components/module0/tier-selector'
+import { TierMonitorButton } from '@/components/module0/tier-monitor-button'
 
 export const metadata = { title: 'Reference Papers — Academic Factory' }
 
@@ -33,6 +35,9 @@ export default async function ReferencePapersPage({
 
   const keyPapers    = papers.filter((p) => p.status === 'key')
   const activePapers = papers.filter((p) => p.status !== 'archived')
+  const tier1Papers  = papers.filter((p) => p.tier === 1)
+  const tier2Papers  = papers.filter((p) => p.tier === 2)
+  const tier3Papers  = papers.filter((p) => p.tier === 3)
 
   // For discovery panel
   const existingDois   = new Set(papers.map((p) => p.doi).filter(Boolean) as string[])
@@ -48,18 +53,38 @@ export default async function ReferencePapersPage({
       <div className="flex items-center justify-between border-b border-zinc-800 px-8 py-5">
         <div>
           <h1 className="text-lg font-semibold text-zinc-100">공유 참고문헌</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">
-            {papers.length}편 · {keyPapers.length}편 핵심 · 프로젝트 공유
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+            <span>{papers.length}편 전체</span>
+            {tier1Papers.length > 0 && (
+              <span className="text-red-400 font-medium">T1 {tier1Papers.length}편</span>
+            )}
+            {tier2Papers.length > 0 && (
+              <span className="text-amber-400">T2 {tier2Papers.length}편</span>
+            )}
+            {tier3Papers.length > 0 && (
+              <span className="text-zinc-500">T3 {tier3Papers.length}편</span>
+            )}
+            <span className="text-zinc-700">· 프로젝트 공유</span>
+          </div>
         </div>
-        <ReferencePaperDialog
-          projectId={selectedProjectId}
-          trigger={
-            <button className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors">
-              + 논문 추가
-            </button>
-          }
-        />
+        <div className="flex items-center gap-2">
+          {/* 1티어 모니터링 새로고침 */}
+          {tier1Papers.length > 0 && project?.research_intent && (
+            <TierMonitorButton
+              researchIntent={project.research_intent}
+              tier1Papers={tier1Papers.map((p) => ({ title: p.title, doi: p.doi ?? null }))}
+              existingDois={papers.map((p) => p.doi ?? '').filter(Boolean)}
+            />
+          )}
+          <ReferencePaperDialog
+            projectId={selectedProjectId}
+            trigger={
+              <button className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors">
+                + 논문 추가
+              </button>
+            }
+          />
+        </div>
       </div>
 
       {/* View tabs */}
@@ -98,6 +123,23 @@ export default async function ReferencePapersPage({
           />
         ) : (
           <>
+            {/* 티어 범례 */}
+            {papers.length > 0 && (
+              <div className="mb-4 flex flex-wrap gap-3">
+                {([1, 2, 3] as const).map((t) => (
+                  <span key={t} className="flex items-center gap-1.5 text-xs text-zinc-600">
+                    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-bold ${
+                      t === 1 ? 'bg-red-950 text-red-400 border border-red-800/50' :
+                      t === 2 ? 'bg-amber-950 text-amber-400 border border-amber-800/50' :
+                               'bg-zinc-800 text-zinc-400 border border-zinc-700/50'
+                    }`}>T{t}</span>
+                    {PAPER_TIER_DESC[t].desc}
+                  </span>
+                ))}
+                <span className="text-xs text-zinc-700">— 각 논문 행에서 티어 클릭으로 설정</span>
+              </div>
+            )}
+
             {activePapers.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-24 text-center">
                 <p className="text-sm text-zinc-500">참고문헌이 없습니다.</p>
@@ -115,21 +157,20 @@ export default async function ReferencePapersPage({
             ) : (
               <div className="space-y-1.5">
                 {activePapers.map((paper) => (
-                  <Link
+                  <div
                     key={paper.id}
-                    href={`/reference-papers/${paper.id}`}
-                    className="group flex items-start gap-4 rounded-lg border border-zinc-800 bg-zinc-900 px-5 py-3.5 hover:border-zinc-700 transition-colors"
+                    className="group flex items-start gap-3 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3.5 hover:border-zinc-700 transition-colors"
                   >
-                    <span
-                      className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-                        paper.status === 'key'
-                          ? 'bg-indigo-400'
-                          : paper.status === 'reading'
-                          ? 'bg-blue-400'
-                          : 'bg-zinc-600'
-                      }`}
-                    />
-                    <div className="flex-1 min-w-0">
+                    {/* Tier selector */}
+                    <div className="mt-0.5 shrink-0">
+                      <TierSelector paperId={paper.id} currentTier={paper.tier ?? null} />
+                    </div>
+
+                    {/* Content */}
+                    <Link
+                      href={`/reference-papers/${paper.id}`}
+                      className="flex-1 min-w-0"
+                    >
                       <p className="text-sm font-medium text-zinc-200 group-hover:text-zinc-100 leading-snug">
                         {paper.title}
                       </p>
@@ -149,9 +190,12 @@ export default async function ReferencePapersPage({
                           {paper.tags.map((tag) => <TagBadge key={tag} tag={tag} />)}
                         </div>
                       )}
+                    </Link>
+                    <div className="shrink-0 flex items-center gap-2">
+                      <PaperTierBadge tier={paper.tier ?? null} />
+                      <PaperStatusBadge status={paper.status} />
                     </div>
-                    <PaperStatusBadge status={paper.status} />
-                  </Link>
+                  </div>
                 ))}
               </div>
             )}

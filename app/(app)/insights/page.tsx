@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { FRAMEWORK_MASTER_INSIGHT } from '@/lib/framework-philosophy'
+import { FRAMEWORK_MASTER_INSIGHT, MODULE_GUIDE_BASIS } from '@/lib/framework-philosophy'
 
 export const metadata = { title: 'Framework Insights — Academic Factory' }
 
@@ -277,6 +277,47 @@ export default function InsightsPage() {
             </div>
           )
         })}
+
+        {/* ── Guide Basis (가이드의 가이드) ──────────── */}
+        <div className="mt-8">
+          <div className="mb-4">
+            <h2 className="text-sm font-semibold text-zinc-200">가이드의 가이드</h2>
+            <p className="mt-1 text-xs text-zinc-500">
+              각 모듈에서 AI가 어떤 정보를 기반으로 가이드를 제공하는지 정의합니다.
+              <span className="ml-1 text-zinc-700">→ 프롬프트 수정 시 이 기준을 참고하세요.</span>
+            </p>
+          </div>
+          <div className="space-y-2">
+            {MODULE_GUIDE_BASIS.map((m) => (
+              <div
+                key={m.tag}
+                className="rounded-lg border border-zinc-800 bg-zinc-900/40 overflow-hidden"
+              >
+                <div className="flex items-start gap-4 px-5 py-4">
+                  <span className="shrink-0 font-mono text-xs font-bold text-indigo-400 mt-0.5 w-8">
+                    {m.tag}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-sm font-medium text-zinc-200">{m.module}</span>
+                    </div>
+                    <p className="text-xs text-zinc-500 mb-2">{m.goal}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {m.inputs.map((inp) => (
+                        <span
+                          key={inp}
+                          className="rounded-full border border-zinc-700/60 bg-zinc-800/60 px-2.5 py-0.5 text-[11px] text-zinc-400"
+                        >
+                          {inp}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* Footer note */}
         <div className="rounded-xl border border-indigo-900/30 bg-indigo-950/20 px-5 py-4 mt-6">
