@@ -216,6 +216,26 @@ export interface JournalInput {
 
 export type AssetType = 'quote' | 'figure' | 'table' | 'data' | 'reference' | 'note'
 
+/**
+ * 논문 섹션 — AI 초고 생성 시 컨텍스트로 활용
+ */
+export type AssetSection =
+  | 'intro'         // 서론
+  | 'methods'       // 실험방법
+  | 'results'       // 결과
+  | 'discussion'    // 토론·고찰
+  | 'conclusion'    // 결론
+  | 'supplementary' // 보충 자료
+
+export const ASSET_SECTION_LABELS: Record<AssetSection, string> = {
+  intro:         '서론',
+  methods:       '실험방법',
+  results:       '결과',
+  discussion:    '토론·고찰',
+  conclusion:    '결론',
+  supplementary: '보충 자료',
+}
+
 export interface Asset {
   id: string
   project_id: string | null
@@ -223,10 +243,13 @@ export interface Asset {
   title: string
   content: string | null
   source: string | null
+  reference_paper_id: string | null
+  paper_section: AssetSection | null
   tags: string[]
   created_at: string
   updated_at: string
   project?: Pick<Project, 'id' | 'name'>
+  reference_paper?: Pick<ReferencePaper, 'id' | 'title' | 'year' | 'journal' | 'tier'>
 }
 
 export interface AssetInput {
@@ -235,6 +258,8 @@ export interface AssetInput {
   title: string
   content?: string
   source?: string
+  reference_paper_id?: string | null
+  paper_section?: AssetSection | null
   tags?: string[]
 }
 

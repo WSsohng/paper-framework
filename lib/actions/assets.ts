@@ -4,11 +4,13 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import type { ActionResult, Asset, AssetInput } from '@/lib/types'
 
+const ASSET_SELECT = '*, project:projects(id, name), reference_paper:reference_papers(id, title, year, journal, tier)'
+
 export async function getAssets(projectId?: string | null): Promise<Asset[]> {
   const supabase = await createClient()
   let query = supabase
     .from('assets')
-    .select('*, project:projects(id, name)')
+    .select(ASSET_SELECT)
     .order('created_at', { ascending: false })
 
   if (projectId) query = query.eq('project_id', projectId)
@@ -22,7 +24,7 @@ export async function getAsset(id: string): Promise<Asset | null> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('assets')
-    .select('*, project:projects(id, name)')
+    .select(ASSET_SELECT)
     .eq('id', id)
     .single()
 
@@ -35,14 +37,16 @@ export async function createAsset(input: AssetInput): Promise<ActionResult<Asset
   const { data, error } = await supabase
     .from('assets')
     .insert({
-      project_id: input.project_id ?? null,
-      type:       input.type       ?? 'note',
-      title:      input.title,
-      content:    input.content    ?? null,
-      source:     input.source     ?? null,
-      tags:       input.tags       ?? [],
+      project_id:         input.project_id         ?? null,
+      type:               input.type               ?? 'note',
+      title:              input.title,
+      content:            input.content            ?? null,
+      source:             input.source             ?? null,
+      reference_paper_id: input.reference_paper_id ?? null,
+      paper_section:      input.paper_section      ?? null,
+      tags:               input.tags               ?? [],
     })
-    .select('*, project:projects(id, name)')
+    .select(ASSET_SELECT)
     .single()
 
   if (error) return { success: false, error: error.message }
@@ -56,7 +60,7 @@ export async function updateAsset(id: string, input: Partial<AssetInput>): Promi
     .from('assets')
     .update(input)
     .eq('id', id)
-    .select('*, project:projects(id, name)')
+    .select(ASSET_SELECT)
     .single()
 
   if (error) return { success: false, error: error.message }
