@@ -179,6 +179,21 @@ export type JournalStatus =
   | 'rejected'
   | 'withdrawn'
 
+export type FitLevel = 'optimal' | 'adequate' | 'insufficient' | 'excessive'
+
+/**
+ * 저널 × 트랙 조합의 AI Fit 분석 결과.
+ * journals.track_analyses JSONB 배열의 원소.
+ */
+export interface TrackFitAnalysis {
+  track_id:    string
+  track_name:  string
+  track_color: string   // hex color
+  fit_level:   FitLevel
+  fit_reason:  string   // Korean, 2-3 sentences
+  analyzed_at: string   // ISO datetime
+}
+
 export interface Journal {
   id: string
   project_id: string | null
@@ -192,6 +207,7 @@ export interface Journal {
   status: JournalStatus
   notes: string | null
   tags: string[]
+  track_analyses: TrackFitAnalysis[]
   created_at: string
   updated_at: string
   // joined

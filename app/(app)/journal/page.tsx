@@ -1,11 +1,13 @@
 import { getJournals } from '@/lib/actions/journals'
 import { getProject } from '@/lib/actions/projects'
+import { getTracks } from '@/lib/actions/tracks'
 import { getSelectedProjectId } from '@/lib/selected-project'
 import { JournalStatusBadge, TagBadge } from '@/components/ui/badge'
 import { JournalDialog } from '@/components/module1/journal-dialog'
 import { JournalAiPanel } from '@/components/module1/journal-ai-panel'
+import { JournalTrackAnalysisButton } from '@/components/module1/journal-track-analysis-button'
 import { ModuleGuideBar } from '@/components/guide/module-guide-bar'
-import type { Journal } from '@/lib/types'
+import type { Journal, TrackFitAnalysis } from '@/lib/types'
 
 export const metadata = { title: 'Journal Intel — Academic Factory' }
 
@@ -35,19 +37,60 @@ function IFBadge({ value }: { value: number | null }) {
   )
 }
 
+// ── Fit 레벨 색상 설정 ────────────────────────────────────
+const FIT_STYLE: Record<string, { bar: string; bg: string; text: string }> = {
+  optimal:      { bar: 'bg-emerald-500', bg: 'bg-emerald-950/40 border-emerald-800/50', text: 'text-emerald-400' },
+  adequate:     { bar: 'bg-amber-500',   bg: 'bg-amber-950/40 border-amber-800/50',     text: 'text-amber-400'   },
+  insufficient: { bar: 'bg-red-600',     bg: 'bg-red-950/40 border-red-900/50',         text: 'text-red-400'     },
+  excessive:    { bar: 'bg-violet-600',  bg: 'bg-violet-950/40 border-violet-800/50',   text: 'text-violet-400'  },
+}
+const FIT_LABEL: Record<string, string> = {
+  optimal: '최적', adequate: '적절', insufficient: '부족', excessive: '과잉',
+}
+
+// ── 트랙 Fit 행 ───────────────────────────────────────────
+function TrackFitRow({ analysis }: { analysis: TrackFitAnalysis }) {
+  const style = FIT_STYLE[analysis.fit_level] ?? FIT_STYLE.adequate
+  return (
+    <div className={`rounded-lg border px-3.5 py-2.5 ${style.bg}`}>
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className="shrink-0 h-2.5 w-2.5 rounded-full"
+            style={{ backgroundColor: analysis.track_color }}
+          />
+          <span className="text-xs font-semibold text-zinc-200 truncate">{analysis.track_name}</span>
+        </div>
+        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide border ${style.bg} ${style.text}`}>
+          {FIT_LABEL[analysis.fit_level] ?? analysis.fit_level}
+        </span>
+      </div>
+      <p className="text-[11px] text-zinc-400 leading-snug">{analysis.fit_reason}</p>
+      <p className="mt-1 text-[9px] text-zinc-700">
+        {new Date(analysis.analyzed_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} 분석
+      </p>
+    </div>
+  )
+}
+
 // ── 저널 카드 ─────────────────────────────────────────────
 function JournalCard({
   journal,
   projectId,
-  allTracks,
-  allJournals,
+  projectResearchIntent,
+  tracks,
 }: {
-  journal:    Journal
-  projectId?: string | null
-  allTracks:  { id: string; name: string }[]
-  allJournals: Journal[]
+  journal:                Journal
+  projectId?:             string | null
+  projectResearchIntent?: string | null
+  tracks:                 { id: string; name: string; color: string; research_intent: string | null }[]
 }) {
   const meta = STATUS_META[journal.status] ?? STATUS_META.considering
+  const analyses = journal.track_analyses ?? []
+
+  // 분석된 트랙을 현재 트랙 목록과 대조해 유효한 것만 표시
+  const validAnalyses = analyses.filter((a) => tracks.some((t) => t.id === a.track_id))
+  const missingTracks = tracks.filter((t) => !analyses.some((a) => a.track_id === t.id))
 
   return (
     <div className={`flex flex-col rounded-xl border bg-zinc-900 ${meta.cardBorder}`}>
@@ -84,10 +127,49 @@ function JournalCard({
         </div>
       )}
 
-      {/* Notes / AI 인사이트 */}
+      {/* Notes */}
       {journal.notes && (
         <div className="mx-5 border-t border-zinc-800/60 pt-2.5 pb-3">
           <p className="text-[11px] text-zinc-500 leading-relaxed">{journal.notes}</p>
+        </div>
+      )}
+
+      {/* ── 트랙별 Fit 분석 ─────────────────────────────── */}
+      {tracks.length > 0 && (
+        <div className="border-t border-zinc-800/60 px-5 py-3">
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold tracking-wider text-zinc-600 uppercase">
+                트랙별 Fit 분석
+              </span>
+              {validAnalyses.length > 0 && missingTracks.length > 0 && (
+                <span className="text-[9px] text-amber-600">
+                  {missingTracks.length}개 미분석
+                </span>
+              )}
+            </div>
+            <JournalTrackAnalysisButton
+              journalId={journal.id}
+              journalName={journal.name}
+              journalScope={journal.scope}
+              journalIF={journal.impact_factor}
+              tracks={tracks}
+              projectResearchIntent={projectResearchIntent ?? null}
+              hasAnalysis={validAnalyses.length > 0}
+            />
+          </div>
+
+          {validAnalyses.length > 0 ? (
+            <div className="space-y-2">
+              {validAnalyses.map((analysis) => (
+                <TrackFitRow key={analysis.track_id} analysis={analysis} />
+              ))}
+            </div>
+          ) : (
+            <p className="py-2 text-[11px] text-zinc-700 italic text-center">
+              ✦ AI 트랙 분석 버튼을 눌러 트랙별 적합도를 분석하세요
+            </p>
+          )}
         </div>
       )}
 
@@ -122,10 +204,16 @@ function JournalCard({
 // ── 페이지 ─────────────────────────────────────────────────
 export default async function JournalPage() {
   const selectedProjectId = await getSelectedProjectId()
-  const [journals, project] = await Promise.all([
+  const [journals, project, allTracks] = await Promise.all([
     getJournals(selectedProjectId),
     selectedProjectId ? getProject(selectedProjectId) : Promise.resolve(null),
+    selectedProjectId ? getTracks(selectedProjectId) : Promise.resolve([]),
   ])
+
+  // 활성 트랙만 분석 대상으로
+  const activeTracks = allTracks
+    .filter((t) => t.status === 'active')
+    .map((t) => ({ id: t.id, name: t.name, color: t.color, research_intent: t.research_intent }))
 
   const grouped = STATUS_ORDER.reduce<Record<string, typeof journals>>((acc, s) => {
     acc[s] = journals.filter((j) => j.status === s)
@@ -238,8 +326,8 @@ export default async function JournalPage() {
                         key={journal.id}
                         journal={journal}
                         projectId={selectedProjectId}
-                        allTracks={[]}
-                        allJournals={journals}
+                        projectResearchIntent={project?.research_intent}
+                        tracks={activeTracks}
                       />
                     ))}
                   </div>
