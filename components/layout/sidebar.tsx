@@ -6,35 +6,24 @@ import { ProjectSelector } from './project-selector'
 import { logout } from '@/lib/actions/site-auth'
 import type { Project } from '@/lib/types'
 
-type NavItem = { label: string; href: string }
-
 type Module = {
   id: number
   shortLabel: string
   label: string
   href: string
-  sub?: NavItem[]
+  /** pathname prefix for active detection */
+  matchPrefix: string
 }
 
+/** M0~M6 연구 파이프라인 */
 const modules: Module[] = [
-  {
-    id: 0,
-    shortLabel: 'M0',
-    label: '주제 관리',
-    href: '/dashboard',
-    sub: [
-      { label: '대시보드',   href: '/dashboard' },
-      { label: '트랙',       href: '/tracks' },
-      { label: '논문',       href: '/papers' },
-      { label: '참고문헌',   href: '/reference-papers' },
-    ],
-  },
-  { id: 1, shortLabel: 'M1', label: '저널 인텔리전스', href: '/journal' },
-  { id: 2, shortLabel: 'M2', label: '자산 라이브러리',  href: '/assets' },
-  { id: 3, shortLabel: 'M3', label: '논증 설계',        href: '/architect' },
-  { id: 4, shortLabel: 'M4', label: '초고 공장',         href: '/draft' },
-  { id: 5, shortLabel: 'M5', label: '그림 & 데이터',    href: '/figures' },
-  { id: 6, shortLabel: 'M6', label: '레드팀',            href: '/redteam' },
+  { id: 0, shortLabel: 'M0', label: '주제 탐색',        href: '/reference-papers?view=discover', matchPrefix: '/reference-papers' },
+  { id: 1, shortLabel: 'M1', label: '저널 인텔리전스',   href: '/journal',    matchPrefix: '/journal'    },
+  { id: 2, shortLabel: 'M2', label: '자산 라이브러리',   href: '/assets',     matchPrefix: '/assets'     },
+  { id: 3, shortLabel: 'M3', label: '논증 설계',         href: '/architect',  matchPrefix: '/architect'  },
+  { id: 4, shortLabel: 'M4', label: '초고 공장',          href: '/draft',      matchPrefix: '/draft'      },
+  { id: 5, shortLabel: 'M5', label: '그림 & 데이터',     href: '/figures',    matchPrefix: '/figures'    },
+  { id: 6, shortLabel: 'M6', label: '레드팀',             href: '/redteam',   matchPrefix: '/redteam'    },
 ]
 
 interface Props {
@@ -45,10 +34,13 @@ interface Props {
 export function Sidebar({ projects, selectedProject }: Props) {
   const pathname = usePathname()
 
+  const isDashboard = pathname === '/dashboard'
+  const isInsights  = pathname === '/insights'
+
   const isModuleActive = (mod: Module) =>
-    pathname === mod.href ||
-    pathname.startsWith(mod.href + '/') ||
-    (mod.sub?.some((s) => pathname === s.href || pathname.startsWith(s.href + '/')) ?? false)
+    pathname === mod.matchPrefix ||
+    pathname.startsWith(mod.matchPrefix + '/') ||
+    pathname.startsWith(mod.matchPrefix + '?')
 
   return (
     <aside className="flex h-full w-56 flex-col border-r border-zinc-800 bg-zinc-950">
@@ -65,59 +57,78 @@ export function Sidebar({ projects, selectedProject }: Props) {
       </div>
 
       {/* 네비게이션 */}
-      <nav className="flex-1 overflow-y-auto px-2 py-2">
-        {modules.map((mod) => {
-          const moduleActive = isModuleActive(mod)
+      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
 
+        {/* 대시보드 — 파이프라인 진입 전 총괄 뷰 */}
+        <Link
+          href="/dashboard"
+          className={`flex h-9 items-center gap-2.5 rounded-md px-2.5 text-sm font-medium transition-all duration-100 ${
+            isDashboard
+              ? 'bg-zinc-800 text-zinc-100'
+              : 'text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200'
+          }`}
+        >
+          <span className={`shrink-0 text-[11px] ${isDashboard ? 'text-indigo-400' : 'text-zinc-700'}`}>
+            ◈
+          </span>
+          <span className="flex-1 truncate">대시보드</span>
+          {isDashboard && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" />}
+        </Link>
+
+        {/* 구분선 + 파이프라인 레이블 */}
+        <div className="pt-2 pb-1 px-2.5">
+          <p className="text-[9px] font-semibold tracking-widest text-zinc-700 uppercase">
+            연구 파이프라인
+          </p>
+        </div>
+
+        {/* M0~M6 선형 흐름 */}
+        {modules.map((mod) => {
+          const active = isModuleActive(mod)
           return (
-            <div key={mod.id} className="mb-0.5">
-              <Link
-                href={mod.href}
-                className={`group flex h-9 items-center gap-2.5 rounded-md px-2.5 text-sm font-medium transition-all duration-100 ${
-                  moduleActive
-                    ? 'bg-zinc-800 text-zinc-100'
-                    : 'text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200'
+            <Link
+              key={mod.id}
+              href={mod.href}
+              className={`group flex h-9 items-center gap-2.5 rounded-md px-2.5 text-sm font-medium transition-all duration-100 ${
+                active
+                  ? 'bg-zinc-800 text-zinc-100'
+                  : 'text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200'
+              }`}
+            >
+              <span
+                className={`shrink-0 font-mono text-[10px] tabular-nums ${
+                  active ? 'text-indigo-400' : 'text-zinc-600 group-hover:text-zinc-500'
                 }`}
               >
-                <span
-                  className={`shrink-0 font-mono text-[10px] tabular-nums ${
-                    moduleActive ? 'text-indigo-400' : 'text-zinc-600 group-hover:text-zinc-500'
-                  }`}
-                >
-                  {mod.shortLabel}
-                </span>
-                <span className="flex-1 truncate">{mod.label}</span>
-                {moduleActive && (
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" />
-                )}
-              </Link>
-
-              {mod.sub && moduleActive && (
-                <div className="ml-2 mt-0.5 border-l border-zinc-800 pl-3 pb-1">
-                  {mod.sub.map((item) => {
-                    const subActive = pathname === item.href
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={`flex h-7 items-center rounded-md px-2 text-xs transition-all duration-100 ${
-                          subActive
-                            ? 'text-zinc-100 bg-zinc-800/60'
-                            : 'text-zinc-500 hover:bg-zinc-800/50 hover:text-zinc-300'
-                        }`}
-                      >
-                        {subActive && (
-                          <span className="mr-1.5 h-1 w-1 shrink-0 rounded-full bg-indigo-500" />
-                        )}
-                        {item.label}
-                      </Link>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
+                {mod.shortLabel}
+              </span>
+              <span className="flex-1 truncate">{mod.label}</span>
+              {active && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" />}
+            </Link>
           )
         })}
+
+        {/* 트랙 — 파이프라인과 별개로 접근 가능 */}
+        <div className="pt-2 pb-1 px-2.5">
+          <p className="text-[9px] font-semibold tracking-widest text-zinc-700 uppercase">
+            관리
+          </p>
+        </div>
+        <Link
+          href="/tracks"
+          className={`group flex h-9 items-center gap-2.5 rounded-md px-2.5 text-sm font-medium transition-all duration-100 ${
+            pathname.startsWith('/tracks')
+              ? 'bg-zinc-800 text-zinc-100'
+              : 'text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200'
+          }`}
+        >
+          <span className={`shrink-0 text-[11px] ${pathname.startsWith('/tracks') ? 'text-indigo-400' : 'text-zinc-700 group-hover:text-zinc-500'}`}>
+            ⊞
+          </span>
+          <span className="flex-1 truncate">트랙 관리</span>
+          {pathname.startsWith('/tracks') && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" />}
+        </Link>
+
       </nav>
 
       {/* 푸터 */}
@@ -125,7 +136,7 @@ export function Sidebar({ projects, selectedProject }: Props) {
         <Link
           href="/insights"
           className={`flex h-8 items-center gap-2 rounded-md px-2 text-xs transition-colors ${
-            pathname === '/insights'
+            isInsights
               ? 'bg-zinc-800 text-zinc-200'
               : 'text-zinc-600 hover:bg-zinc-800/60 hover:text-zinc-400'
           }`}

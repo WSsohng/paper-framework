@@ -17,7 +17,9 @@ export default async function ReferencePapersPage({
   searchParams: Promise<{ view?: string }>
 }) {
   const { view } = await searchParams
-  const isDiscover = view === 'discover'
+  // discover가 M0의 기본 뷰 (사이드바에서 ?view=discover로 진입)
+  // view=list 로 명시할 때만 리스트 뷰로 전환
+  const isDiscover = view !== 'list'
 
   const selectedProjectId = await getSelectedProjectId()
 
@@ -53,7 +55,9 @@ export default async function ReferencePapersPage({
       {/* Header */}
       <div className="flex items-center justify-between border-b border-zinc-800 px-8 py-5">
         <div>
-          <h1 className="text-lg font-semibold text-zinc-100">공유 참고문헌</h1>
+          <h1 className="text-lg font-semibold text-zinc-100">
+            {isDiscover ? 'M0 · 주제 탐색' : '수집된 참고문헌'}
+          </h1>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
             <span>{papers.length}편 전체</span>
             {tier1Papers.length > 0 && (
@@ -102,16 +106,6 @@ export default async function ReferencePapersPage({
       {/* View tabs */}
       <div className="flex gap-0 border-b border-zinc-800 px-8">
         <Link
-          href="/reference-papers"
-          className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-            !isDiscover
-              ? 'border-indigo-500 text-indigo-300'
-              : 'border-transparent text-zinc-500 hover:text-zinc-300'
-          }`}
-        >
-          목록
-        </Link>
-        <Link
           href="/reference-papers?view=discover"
           className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
             isDiscover
@@ -120,6 +114,16 @@ export default async function ReferencePapersPage({
           }`}
         >
           ✦ AI 문헌 탐색
+        </Link>
+        <Link
+          href="/reference-papers?view=list"
+          className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            !isDiscover
+              ? 'border-indigo-500 text-indigo-300'
+              : 'border-transparent text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          수집된 논문
         </Link>
       </div>
 
