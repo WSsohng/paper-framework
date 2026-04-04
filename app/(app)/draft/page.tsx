@@ -9,7 +9,7 @@ import { DraftDialog } from '@/components/module4/draft-dialog'
 import { TrackContextBanner } from '@/components/layout/track-context-banner'
 import type { DraftStatus } from '@/lib/types'
 
-export const metadata = { title: 'Draft Factory — PaperFactory' }
+export const metadata = { title: '원고 작성 — PaperFactory' }
 
 const STATUS_ORDER: DraftStatus[] = ['drafting', 'revising', 'outline', 'ready', 'submitted']
 
@@ -38,8 +38,8 @@ export default async function DraftPage() {
     <div className="flex flex-1 flex-col overflow-y-auto">
       <div className="flex items-center justify-between border-b border-zinc-800 px-8 py-5">
         <div>
-          <h1 className="text-lg font-semibold text-zinc-100">초고 공장</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">M4 · 논문 초고 작성</p>
+          <h1 className="text-lg font-semibold text-zinc-100">원고 작성</h1>
+          <p className="mt-0.5 text-sm text-zinc-500">M4 · Manuscript — 논문 초고 작성</p>
         </div>
         <DraftDialog
           tracks={tracks}

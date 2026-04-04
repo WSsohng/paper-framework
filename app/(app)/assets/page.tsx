@@ -67,9 +67,9 @@ export default async function AssetsPage({
       {/* 헤더 */}
       <div className="flex items-center justify-between border-b border-zinc-800 px-8 py-5">
         <div>
-          <h1 className="text-lg font-semibold text-zinc-100">자산 라이브러리</h1>
+          <h1 className="text-lg font-semibold text-zinc-100">연구 자산</h1>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-            <span>{assets.length}개 자산</span>
+            <span>M2 · Research Assets · {assets.length}개 자산</span>
             {linkedCount > 0 && (
               <span className="text-indigo-400">· 출처 연결 {linkedCount}개</span>
             )}

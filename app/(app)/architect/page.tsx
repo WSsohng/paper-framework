@@ -8,7 +8,7 @@ import { HypothesisDialog } from '@/components/module3/hypothesis-dialog'
 import { TrackContextBanner } from '@/components/layout/track-context-banner'
 import type { HypothesisStatus } from '@/lib/types'
 
-export const metadata = { title: 'Argument Architect — PaperFactory' }
+export const metadata = { title: '논증·가설 — PaperFactory' }
 
 const STATUS_ORDER: HypothesisStatus[] = ['active', 'testing', 'draft', 'confirmed', 'rejected']
 
@@ -36,8 +36,8 @@ export default async function ArchitectPage() {
     <div className="flex flex-1 flex-col overflow-y-auto">
       <div className="flex items-center justify-between border-b border-zinc-800 px-8 py-5">
         <div>
-          <h1 className="text-lg font-semibold text-zinc-100">논증 설계</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">M3 · 가설·논증 구조화</p>
+          <h1 className="text-lg font-semibold text-zinc-100">논증·가설</h1>
+          <p className="mt-0.5 text-sm text-zinc-500">M3 · Hypothesis — 가설 정의 및 논증 구조화</p>
         </div>
         <HypothesisDialog
           tracks={tracks}

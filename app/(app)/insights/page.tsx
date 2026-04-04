@@ -34,7 +34,7 @@ const modules: ModuleInsight[] = [
   {
     id: 1,
     tag: 'M1',
-    name: '저널 인텔리전스',
+    name: '저널 전략',
     href: '/journal',
     status: 'live',
     insight:
@@ -47,7 +47,7 @@ const modules: ModuleInsight[] = [
   {
     id: 2,
     tag: 'M2',
-    name: '자산 라이브러리',
+    name: '연구 자산',
     href: '/assets',
     status: 'partial',
     insight:
@@ -60,7 +60,7 @@ const modules: ModuleInsight[] = [
   {
     id: 3,
     tag: 'M3',
-    name: '논증 설계',
+    name: '논증·가설',
     href: '/architect',
     status: 'partial',
     insight:
@@ -73,7 +73,7 @@ const modules: ModuleInsight[] = [
   {
     id: 4,
     tag: 'M4',
-    name: '초고 공장',
+    name: '원고 작성',
     href: '/draft',
     status: 'partial',
     insight:
@@ -99,7 +99,7 @@ const modules: ModuleInsight[] = [
   {
     id: 6,
     tag: 'M6',
-    name: '레드팀 & 제출',
+    name: '검토·피드백',
     href: '/redteam',
     status: 'partial',
     insight:

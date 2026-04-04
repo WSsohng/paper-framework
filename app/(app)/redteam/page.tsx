@@ -8,7 +8,7 @@ import { ReviewSeverityBadge, ReviewCategoryBadge, TagBadge } from '@/components
 import { ReviewDialog } from '@/components/module6/review-dialog'
 import { TrackContextBanner } from '@/components/layout/track-context-banner'
 
-export const metadata = { title: 'Red Team — PaperFactory' }
+export const metadata = { title: '검토·피드백 — PaperFactory' }
 
 export default async function RedTeamPage() {
   const selectedProjectId = await getSelectedProjectId()
@@ -39,8 +39,8 @@ export default async function RedTeamPage() {
     <div className="flex flex-1 flex-col overflow-y-auto">
       <div className="flex items-center justify-between border-b border-zinc-800 px-8 py-5">
         <div>
-          <h1 className="text-lg font-semibold text-zinc-100">레드팀 & 제출</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">M6 · 가상 리뷰어 검토</p>
+          <h1 className="text-lg font-semibold text-zinc-100">검토·피드백</h1>
+          <p className="mt-0.5 text-sm text-zinc-500">M6 · Review & Feedback — 가상 리뷰어 검토 및 수정</p>
         </div>
         <ReviewDialog
           drafts={drafts}

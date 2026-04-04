@@ -9,7 +9,7 @@ import { FigureDialog } from '@/components/module5/figure-dialog'
 import { TrackContextBanner } from '@/components/layout/track-context-banner'
 import type { FigureStatus } from '@/lib/types'
 
-export const metadata = { title: 'Figure & Data — PaperFactory' }
+export const metadata = { title: '그림·도표 — PaperFactory' }
 
 const STATUS_ORDER: FigureStatus[] = ['draft', 'planned', 'final']
 
@@ -44,8 +44,8 @@ export default async function FiguresPage() {
     <div className="flex flex-1 flex-col overflow-y-auto">
       <div className="flex items-center justify-between border-b border-zinc-800 px-8 py-5">
         <div>
-          <h1 className="text-lg font-semibold text-zinc-100">그림 & 데이터</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">M5 · 도표·데이터 시각화 관리</p>
+          <h1 className="text-lg font-semibold text-zinc-100">그림·도표</h1>
+          <p className="mt-0.5 text-sm text-zinc-500">M5 · Figures & Data — 도표·데이터 시각화 관리</p>
         </div>
         <FigureDialog
           tracks={tracks}

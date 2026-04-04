@@ -230,9 +230,9 @@ export default async function JournalPage() {
       {/* 헤더 */}
       <div className="flex items-center justify-between border-b border-zinc-800 px-8 py-5">
         <div>
-          <h1 className="text-lg font-semibold text-zinc-100">저널 인텔리전스</h1>
+          <h1 className="text-lg font-semibold text-zinc-100">저널 전략</h1>
           <p className="mt-0.5 text-sm text-zinc-500">
-            {journals.length}개 저널
+            M1 · Journal Strategy · {journals.length}개 저널
             {shortlisted.length >= 2 && (
               <span className="ml-2 text-indigo-400 text-xs font-medium">
                 · 후보 {shortlisted.length}개 나란히 비교 가능

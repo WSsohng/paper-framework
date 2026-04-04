@@ -16,16 +16,16 @@ type Module = {
 }
 
 const sharedModules: Module[] = [
-  { id: 0, shortLabel: 'M0', label: '주제 탐색',      href: '/reference-papers?view=discover', matchPrefix: '/reference-papers' },
-  { id: 1, shortLabel: 'M1', label: '저널 인텔리전스', href: '/journal',   matchPrefix: '/journal'   },
-  { id: 2, shortLabel: 'M2', label: '자산 라이브러리', href: '/assets',    matchPrefix: '/assets'    },
+  { id: 0, shortLabel: 'M0', label: '연구 주제 발굴', href: '/reference-papers?view=discover', matchPrefix: '/reference-papers' },
+  { id: 1, shortLabel: 'M1', label: '저널 전략',      href: '/journal',   matchPrefix: '/journal'   },
+  { id: 2, shortLabel: 'M2', label: '연구 자산',      href: '/assets',    matchPrefix: '/assets'    },
 ]
 
 const trackModules: Module[] = [
-  { id: 3, shortLabel: 'M3', label: '논증 설계',    href: '/architect', matchPrefix: '/architect' },
-  { id: 4, shortLabel: 'M4', label: '초고 공장',     href: '/draft',     matchPrefix: '/draft'     },
-  { id: 5, shortLabel: 'M5', label: '그림 & 데이터', href: '/figures',   matchPrefix: '/figures'   },
-  { id: 6, shortLabel: 'M6', label: '레드팀',        href: '/redteam',   matchPrefix: '/redteam'   },
+  { id: 3, shortLabel: 'M3', label: '논증·가설',    href: '/architect', matchPrefix: '/architect' },
+  { id: 4, shortLabel: 'M4', label: '원고 작성',     href: '/draft',     matchPrefix: '/draft'     },
+  { id: 5, shortLabel: 'M5', label: '그림·도표',     href: '/figures',   matchPrefix: '/figures'   },
+  { id: 6, shortLabel: 'M6', label: '검토·피드백',   href: '/redteam',   matchPrefix: '/redteam'   },
 ]
 
 interface Props {

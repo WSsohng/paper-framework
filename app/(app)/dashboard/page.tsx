@@ -153,7 +153,7 @@ function calcReadiness(p: Progress): StageReadiness[] {
     },
     {
       module: 'M6',
-      label:  '레드팀',
+      label:  '검토·피드백',
       score:  Math.min(100, Math.round(
         (Math.min(p.reviewCount, 5)          / 5) * 40 +
         (Math.min(p.resolvedReviewCount, 5)  / 5) * 60
@@ -364,7 +364,7 @@ function buildSteps(p: Progress, tracks: Track[], intent: string | null): Step[]
       id: 'figures',
       module: 'M5',
       phase: '집필',
-      title: '그림 & 데이터 계획',
+      title: '그림·도표 계획',
       description: '논문에 필요한 그림과 차트를 미리 계획하고 제작 진행 상태를 추적하세요.',
       href: '/figures',
       done: p.figureCount >= 1,
@@ -375,7 +375,7 @@ function buildSteps(p: Progress, tracks: Track[], intent: string | null): Step[]
       id: 'redteam',
       module: 'M6',
       phase: '검토',
-      title: 'Red Team 리뷰',
+      title: '검토·피드백 리뷰',
       description: '가상 리뷰어 관점에서 초고를 비판하고 약점을 보완해 완성도를 높이세요.',
       href: '/redteam',
       done: p.reviewCount >= 3,
@@ -395,7 +395,7 @@ function getPipelineStatus(steps: Step[]) {
     { id: 3, label: '논증\n설계',        stepIds: ['hypotheses'],              href: '/architect' },
     { id: 4, label: '초고\n공장',        stepIds: ['draft'],                   href: '/draft' },
     { id: 5, label: '그림\n& 데이터',   stepIds: ['figures'],                 href: '/figures' },
-    { id: 6, label: '레드팀\n& 제출',    stepIds: ['redteam'],                 href: '/redteam' },
+    { id: 6, label: '검토\n피드백',       stepIds: ['redteam'],                 href: '/redteam' },
   ].map((mod) => ({
     ...mod,
     done:   mod.stepIds.every((id) => steps.find((s) => s.id === id)?.done),

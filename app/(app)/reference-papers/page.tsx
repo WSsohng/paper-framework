@@ -56,7 +56,7 @@ export default async function ReferencePapersPage({
       <div className="flex items-center justify-between border-b border-zinc-800 px-8 py-5">
         <div>
           <h1 className="text-lg font-semibold text-zinc-100">
-            {isDiscover ? 'M0 · 주제 탐색' : '수집된 참고문헌'}
+            {isDiscover ? 'M0 · 연구 주제 발굴' : '수집된 참고문헌'}
           </h1>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
             <span>{papers.length}편 전체</span>
