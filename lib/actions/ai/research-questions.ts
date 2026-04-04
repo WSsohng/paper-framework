@@ -86,7 +86,7 @@ Return ONLY a valid JSON array of exactly 5 objects:
 No markdown, no explanation — pure JSON only.`
 
   try {
-    const list = await generateJson<ResearchQuestion[]>(prompt, 0.4)
+    const list = await generateJson<ResearchQuestion[]>(prompt, 0.4, { meta: { feature: 'research_questions' } })
     if (!Array.isArray(list) || !list.length) {
       return { success: false, error: '질문 생성 실패. 다시 시도해 주세요.' }
     }

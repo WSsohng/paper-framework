@@ -1,5 +1,7 @@
 import Link from 'next/link'
 import { FRAMEWORK_MASTER_INSIGHT, MODULE_GUIDE_BASIS, MODULE_USAGE_GUIDE } from '@/lib/framework-philosophy'
+import { getAIUsageData } from '@/lib/actions/ai-usage'
+import { getSelectedProjectId } from '@/lib/selected-project'
 
 export const metadata = { title: 'Framework Insights — PaperFactory' }
 
@@ -125,6 +127,9 @@ export default async function InsightsPage({
   searchParams: Promise<{ tab?: string }>
 }) {
   const { tab } = await searchParams
+  const selectedProjectId = await getSelectedProjectId()
+  const usageData = tab === 'usage' ? await getAIUsageData(selectedProjectId) : null
+
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
       {/* ── Hero ──────────────────────────────────────── */}
@@ -239,6 +244,17 @@ export default async function InsightsPage({
         >
           가이드 기준
           <span className="ml-1.5 text-[10px] text-zinc-600">AI 입력 정의</span>
+        </Link>
+        <Link
+          href="/insights?tab=usage"
+          className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            tab === 'usage'
+              ? 'border-indigo-500 text-indigo-300'
+              : 'border-transparent text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          AI 사용량
+          <span className="ml-1.5 text-[10px] text-zinc-600">토큰 · 비용</span>
         </Link>
       </div>
 
@@ -458,6 +474,168 @@ export default async function InsightsPage({
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ── AI 사용량 탭 ────────────────────────────────── */}
+      {tab === 'usage' && usageData && (
+        <div className="flex-1 px-8 py-6 space-y-6">
+
+          {/* AI 상태 배너 */}
+          <div className={`flex items-center gap-3 rounded-xl border px-5 py-3 ${
+            usageData.aiStatus.provider === 'none'
+              ? 'border-rose-900/50 bg-rose-950/20'
+              : usageData.aiStatus.provider === 'claude'
+              ? 'border-indigo-800/50 bg-indigo-950/20'
+              : 'border-emerald-800/50 bg-emerald-950/20'
+          }`}>
+            <span className={`h-2.5 w-2.5 rounded-full ${
+              usageData.aiStatus.provider === 'none' ? 'bg-rose-500' :
+              usageData.aiStatus.provider === 'claude' ? 'bg-indigo-400' : 'bg-emerald-400'
+            }`} />
+            <div>
+              {usageData.aiStatus.provider === 'none' ? (
+                <p className="text-sm font-semibold text-rose-400">AI API 키 미설정</p>
+              ) : (
+                <p className="text-sm font-semibold text-zinc-100">
+                  AI 활성 · {usageData.aiStatus.model}
+                  <span className="ml-2 text-xs font-normal text-zinc-500">
+                    ({usageData.aiStatus.provider === 'claude' ? 'Anthropic Claude' : 'OpenAI'})
+                  </span>
+                </p>
+              )}
+              {usageData.aiStatus.provider === 'none' && (
+                <p className="mt-0.5 text-xs text-zinc-500">
+                  Vercel 환경변수에 ANTHROPIC_API_KEY 또는 OPENAI_API_KEY를 설정하세요
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* 비용 개요 카드 */}
+          <div className="grid grid-cols-4 gap-3">
+            {[
+              { label: '전체 토큰', value: (usageData.allTime.totalTokens).toLocaleString(), unit: 'tokens', color: 'text-zinc-100' },
+              { label: '이번 달 토큰', value: (usageData.thisMonth.totalTokens).toLocaleString(), unit: 'tokens', color: 'text-indigo-300' },
+              { label: '전체 예상 비용', value: `$${usageData.allTime.estimatedCost.toFixed(4)}`, unit: 'USD', color: 'text-amber-400' },
+              { label: '총 호출 횟수', value: usageData.allTime.callCount.toLocaleString(), unit: '회', color: 'text-zinc-100' },
+            ].map((card) => (
+              <div key={card.label} className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-4">
+                <p className="text-[11px] text-zinc-600 mb-1">{card.label}</p>
+                <p className={`text-xl font-bold tabular-nums ${card.color}`}>{card.value}</p>
+                <p className="text-[10px] text-zinc-700 mt-0.5">{card.unit}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* 비용 참고 정보 */}
+          <div className="rounded-lg border border-zinc-800/50 bg-zinc-900/30 px-4 py-3">
+            <p className="text-[11px] font-semibold text-zinc-500 mb-2">AI 단가 참고 (2025 기준)</p>
+            <div className="grid grid-cols-2 gap-3 text-[11px] text-zinc-600">
+              <div>
+                <span className="font-medium text-indigo-400">Claude 3.5 Haiku</span>
+                <span className="ml-2">입력 $0.80/M · 출력 $4.00/M tokens</span>
+              </div>
+              <div>
+                <span className="font-medium text-emerald-400">GPT-4o-mini</span>
+                <span className="ml-2">입력 $0.15/M · 출력 $0.60/M tokens</span>
+              </div>
+            </div>
+            <p className="mt-1.5 text-[10px] text-zinc-700">
+              일반적인 연구 세션(AI 20회 호출) ≈ 30,000 tokens ≈ $0.05~0.10 수준
+            </p>
+          </div>
+
+          {!usageData.hasLogs ? (
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-6 py-10 text-center">
+              <p className="text-2xl mb-3">📊</p>
+              <p className="text-sm font-medium text-zinc-400">아직 AI 사용 기록이 없습니다</p>
+              <p className="mt-1 text-xs text-zinc-600">
+                API 키를 설정한 후 AI 기능을 사용하면 여기에 자동으로 기록됩니다
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* 기능별 사용량 */}
+              <div>
+                <h3 className="mb-3 text-sm font-semibold text-zinc-300">기능별 사용량</h3>
+                <div className="space-y-2">
+                  {usageData.byFeature.map((f) => {
+                    const total = usageData.allTime.totalTokens || 1
+                    const pct = Math.round(((f.input_tokens + f.output_tokens) / total) * 100)
+                    return (
+                      <div key={f.feature} className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-zinc-200">{f.label}</span>
+                            <span className="text-[10px] text-zinc-600">{f.call_count}회</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-[11px]">
+                            <span className="text-zinc-500 tabular-nums">{(f.input_tokens + f.output_tokens).toLocaleString()} tok</span>
+                            <span className="text-amber-500 tabular-nums">${f.cost.toFixed(4)}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                            <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-[10px] text-zinc-700 tabular-nums w-7 text-right">{pct}%</span>
+                        </div>
+                        <div className="mt-1 flex gap-3 text-[10px] text-zinc-700">
+                          <span>입력 {f.input_tokens.toLocaleString()}</span>
+                          <span>출력 {f.output_tokens.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* 최근 호출 로그 */}
+              <div>
+                <h3 className="mb-3 text-sm font-semibold text-zinc-300">최근 호출 내역</h3>
+                <div className="rounded-xl border border-zinc-800 overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-zinc-800 bg-zinc-900/80">
+                        <th className="px-4 py-2.5 text-left font-medium text-zinc-600">시각</th>
+                        <th className="px-4 py-2.5 text-left font-medium text-zinc-600">기능</th>
+                        <th className="px-4 py-2.5 text-left font-medium text-zinc-600">모델</th>
+                        <th className="px-4 py-2.5 text-right font-medium text-zinc-600">입력</th>
+                        <th className="px-4 py-2.5 text-right font-medium text-zinc-600">출력</th>
+                        <th className="px-4 py-2.5 text-right font-medium text-zinc-600">비용</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {usageData.recentLogs.map((log) => (
+                        <tr key={log.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors">
+                          <td className="px-4 py-2 text-zinc-600 tabular-nums whitespace-nowrap">
+                            {new Date(log.created_at).toLocaleString('ko-KR', {
+                              month: 'numeric', day: 'numeric',
+                              hour: '2-digit', minute: '2-digit',
+                            })}
+                          </td>
+                          <td className="px-4 py-2 text-zinc-300">{log.label}</td>
+                          <td className="px-4 py-2">
+                            <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                              log.provider === 'claude'
+                                ? 'bg-indigo-950/60 text-indigo-400'
+                                : 'bg-emerald-950/60 text-emerald-400'
+                            }`}>
+                              {log.model.replace('claude-3-5-', '').replace('-latest', '')}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-right tabular-nums text-zinc-500">{log.input_tokens.toLocaleString()}</td>
+                          <td className="px-4 py-2 text-right tabular-nums text-zinc-500">{log.output_tokens.toLocaleString()}</td>
+                          <td className="px-4 py-2 text-right tabular-nums text-amber-500">${log.cost.toFixed(4)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

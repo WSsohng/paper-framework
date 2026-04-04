@@ -72,7 +72,7 @@ Return ONLY a valid JSON array of exactly 4 objects:
 Order by confidence descending. No markdown — pure JSON only.`
 
   try {
-    const list = await generateJson<TopicRecommendation[]>(prompt, 0.5)
+    const list = await generateJson<TopicRecommendation[]>(prompt, 0.5, { meta: { feature: 'topic_recommendation' } })
     if (!Array.isArray(list) || !list.length) {
       return { success: false, error: '주제 추천 실패. 다시 시도해 주세요.' }
     }

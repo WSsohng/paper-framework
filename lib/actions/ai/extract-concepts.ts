@@ -43,7 +43,7 @@ export async function extractPaperConcepts(
 
   const { data: paper, error: fetchErr } = await supabase
     .from('reference_papers')
-    .select('title, abstract, notes, year, tier')
+    .select('title, abstract, notes, year, tier, project_id')
     .eq('id', paperId)
     .single()
 
@@ -76,7 +76,10 @@ Abstract: ${paper.abstract ?? '(없음)'}
 
   let result: ConceptExtractionResult
   try {
-    result = await generateJson<ConceptExtractionResult>(prompt, 0.3, { skipFrameworkProtocol: true })
+    result = await generateJson<ConceptExtractionResult>(prompt, 0.3, {
+      skipFrameworkProtocol: true,
+      meta: { feature: 'concept_extraction', projectId: (paper as { project_id?: string }).project_id ?? undefined },
+    })
   } catch (e) {
     return { success: false, error: `AI 분석 실패: ${e instanceof Error ? e.message : String(e)}` }
   }

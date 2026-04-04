@@ -89,7 +89,7 @@ Return ONLY a valid JSON array of 3–5 objects:
 No markdown — pure JSON only.`
 
   try {
-    const data = await generateJson<AssetInsight[]>(prompt, 0.3)
+    const data = await generateJson<AssetInsight[]>(prompt, 0.3, { meta: { feature: 'asset_insights' } })
     return { success: true, data, paperId: paper.id }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)

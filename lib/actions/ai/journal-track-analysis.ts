@@ -80,7 +80,7 @@ Return ONLY the JSON array. No markdown, no explanation.`
     const parsed = await generateJson<
       | { track_id: string; fit_level: FitLevel; fit_reason: string }[]
       | { analyses?: unknown[]; data?: unknown[]; results?: unknown[] }
-    >(prompt, 0.3, { skipFrameworkProtocol: true })
+    >(prompt, 0.3, { skipFrameworkProtocol: true, meta: { feature: 'journal_analysis' } })
 
     rawList = Array.isArray(parsed)
       ? (parsed as typeof rawList)

@@ -69,7 +69,7 @@ Return ONLY a valid JSON object:
 No markdown — pure JSON only.`
 
   try {
-    const data = await generateJson<TimelinessAnalysis>(prompt, 0.3)
+    const data = await generateJson<TimelinessAnalysis>(prompt, 0.3, { meta: { feature: 'timeliness_analysis' } })
     return { success: true, data }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
