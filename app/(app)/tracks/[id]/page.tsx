@@ -12,7 +12,7 @@ import { TimelinessPanel } from '@/components/module0/timeliness-panel'
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const track = await getTrack(id)
-  return { title: track ? `${track.name} — Academic Factory` : 'Track Not Found' }
+  return { title: track ? `${track.name} — PaperFactory` : 'Track Not Found' }
 }
 
 export default async function TrackDetailPage({

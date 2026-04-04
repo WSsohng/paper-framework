@@ -47,7 +47,7 @@ export function Sidebar({ projects, selectedProject }: Props) {
       {/* 로고 */}
       <div className="flex h-14 shrink-0 items-center border-b border-zinc-800 px-4">
         <span className="text-base font-bold tracking-tight text-zinc-100">
-          Academic<span className="text-indigo-400">Factory</span>
+          Paper<span className="text-indigo-400">Factory</span>
         </span>
       </div>
 

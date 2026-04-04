@@ -7,7 +7,7 @@ import { HypothesisDialog } from '@/components/module3/hypothesis-dialog'
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const h = await getHypothesis(id)
-  return { title: h ? `${h.title} — Academic Factory` : 'Hypothesis Not Found' }
+  return { title: h ? `${h.title} — PaperFactory` : 'Hypothesis Not Found' }
 }
 
 export default async function HypothesisDetailPage({ params }: { params: Promise<{ id: string }> }) {

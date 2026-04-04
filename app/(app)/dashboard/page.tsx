@@ -10,7 +10,7 @@ import { ProjectDialog } from '@/components/module0/project-dialog'
 import { GuideCard } from '@/components/guide/guide-card'
 import type { Project, Track } from '@/lib/types'
 
-export const metadata = { title: 'Dashboard — Academic Factory' }
+export const metadata = { title: 'Dashboard — PaperFactory' }
 
 // ── 진행 데이터 fetch ─────────────────────────────────────
 

@@ -5,7 +5,7 @@ import { getTracks } from '@/lib/actions/tracks'
 import { ReviewSeverityBadge, ReviewCategoryBadge, TagBadge } from '@/components/ui/badge'
 import { ReviewDialog } from '@/components/module6/review-dialog'
 
-export const metadata = { title: 'Red Team — Academic Factory' }
+export const metadata = { title: 'Red Team — PaperFactory' }
 
 export default async function RedTeamPage() {
   const { getSelectedProjectId } = await import('@/lib/selected-project')

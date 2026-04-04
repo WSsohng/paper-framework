@@ -5,7 +5,7 @@ import { getSelectedProjectId } from '@/lib/selected-project'
 import { PaperStatusBadge, TagBadge } from '@/components/ui/badge'
 import { PaperDialog } from '@/components/module0/paper-dialog'
 
-export const metadata = { title: 'Papers — Academic Factory' }
+export const metadata = { title: 'Papers — PaperFactory' }
 
 export default async function PapersPage() {
   const selectedProjectId = await getSelectedProjectId()

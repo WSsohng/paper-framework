@@ -9,7 +9,7 @@ import { ASSET_SECTION_LABELS } from '@/lib/types'
 import { AssetInsightButton } from '@/components/module2/asset-insight-button'
 import { ModuleGuideBar } from '@/components/guide/module-guide-bar'
 
-export const metadata = { title: 'Asset Library — Academic Factory' }
+export const metadata = { title: 'Asset Library — PaperFactory' }
 
 const TYPE_ORDER: AssetType[] = ['quote', 'reference', 'figure', 'table', 'data', 'note']
 const TYPE_LABELS: Record<AssetType, string> = {

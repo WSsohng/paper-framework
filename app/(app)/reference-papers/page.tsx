@@ -9,7 +9,7 @@ import { TierSelector } from '@/components/module0/tier-selector'
 import { TierMonitorButton } from '@/components/module0/tier-monitor-button'
 import { ModuleGuideBar } from '@/components/guide/module-guide-bar'
 
-export const metadata = { title: 'Reference Papers — Academic Factory' }
+export const metadata = { title: 'Reference Papers — PaperFactory' }
 
 export default async function ReferencePapersPage({
   searchParams,

@@ -8,7 +8,7 @@ import { FigureDialog } from '@/components/module5/figure-dialog'
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const figure = await getFigure(id)
-  return { title: figure ? `${figure.title} — Academic Factory` : 'Figure Not Found' }
+  return { title: figure ? `${figure.title} — PaperFactory` : 'Figure Not Found' }
 }
 
 export default async function FigureDetailPage({ params }: { params: Promise<{ id: string }> }) {

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { FRAMEWORK_MASTER_INSIGHT, MODULE_GUIDE_BASIS, MODULE_USAGE_GUIDE } from '@/lib/framework-philosophy'
 
-export const metadata = { title: 'Framework Insights — Academic Factory' }
+export const metadata = { title: 'Framework Insights — PaperFactory' }
 
 type ModuleStatus = 'live' | 'partial' | 'planned'
 

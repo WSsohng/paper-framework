@@ -6,7 +6,7 @@ import { HypothesisStatusBadge, TagBadge } from '@/components/ui/badge'
 import { HypothesisDialog } from '@/components/module3/hypothesis-dialog'
 import type { HypothesisStatus } from '@/lib/types'
 
-export const metadata = { title: 'Argument Architect — Academic Factory' }
+export const metadata = { title: 'Argument Architect — PaperFactory' }
 
 const STATUS_ORDER: HypothesisStatus[] = ['active', 'testing', 'draft', 'confirmed', 'rejected']
 

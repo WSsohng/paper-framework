@@ -9,7 +9,7 @@ import { JournalTrackAnalysisButton } from '@/components/module1/journal-track-a
 import { ModuleGuideBar } from '@/components/guide/module-guide-bar'
 import type { Journal, TrackFitAnalysis } from '@/lib/types'
 
-export const metadata = { title: 'Journal Intel — Academic Factory' }
+export const metadata = { title: 'Journal Intel — PaperFactory' }
 
 const STATUS_ORDER = ['shortlisted', 'considering', 'submitted', 'accepted', 'rejected', 'withdrawn'] as const
 

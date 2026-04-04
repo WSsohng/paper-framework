@@ -1,6 +1,6 @@
 import { LoginForm } from './login-form'
 
-export const metadata = { title: '로그인 — Academic Factory' }
+export const metadata = { title: '로그인 — PaperFactory' }
 
 export default function LoginPage() {
   return (

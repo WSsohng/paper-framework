@@ -1,4 +1,4 @@
-# Academic Factory — 프레임워크 설명서
+# PaperFactory — 프레임워크 설명서
 
 > 학술 논문 작성 전 과정을 체계적으로 관리하는 연구자를 위한 워크플로우 프레임워크
 
@@ -18,7 +18,7 @@
 
 ## 1. 개요
 
-Academic Factory는 "아이디어 발굴 → 저널 분석 → 논거 구축 → 초고 작성 → 제출"까지,
+PaperFactory는 "아이디어 발굴 → 저널 분석 → 논거 구축 → 초고 작성 → 제출"까지,
 논문 한 편이 완성되기까지의 전 과정을 하나의 공간에서 관리하는 연구 관리 시스템입니다.
 
 **설계 원칙:**
@@ -436,4 +436,4 @@ npm run dev
 
 ---
 
-*Academic Factory v0.2 — Project-Track Hierarchy*
+*PaperFactory v0.2 — Project-Track Hierarchy*

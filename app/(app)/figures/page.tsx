@@ -7,7 +7,7 @@ import { FigureStatusBadge, FigureTypeBadge, TagBadge } from '@/components/ui/ba
 import { FigureDialog } from '@/components/module5/figure-dialog'
 import type { FigureStatus } from '@/lib/types'
 
-export const metadata = { title: 'Figure & Data — Academic Factory' }
+export const metadata = { title: 'Figure & Data — PaperFactory' }
 
 const STATUS_ORDER: FigureStatus[] = ['draft', 'planned', 'final']
 

@@ -4,7 +4,7 @@ import { getSelectedProjectId } from '@/lib/selected-project'
 import { TrackStatusBadge, TagBadge } from '@/components/ui/badge'
 import { TrackDialog } from '@/components/module0/track-dialog'
 
-export const metadata = { title: 'Tracks — Academic Factory' }
+export const metadata = { title: 'Tracks — PaperFactory' }
 
 export default async function TracksPage() {
   const selectedProjectId = await getSelectedProjectId()

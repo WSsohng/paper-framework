@@ -1,5 +1,5 @@
 -- ============================================================
--- Academic Factory — Full Schema (Project → Track hierarchy)
+-- PaperFactory — Full Schema (Project → Track hierarchy)
 -- ============================================================
 
 -- shared helper: auto-update updated_at

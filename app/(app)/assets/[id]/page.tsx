@@ -7,7 +7,7 @@ import { AssetDialog } from '@/components/module2/asset-dialog'
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const asset = await getAsset(id)
-  return { title: asset ? `${asset.title} — Academic Factory` : 'Asset Not Found' }
+  return { title: asset ? `${asset.title} — PaperFactory` : 'Asset Not Found' }
 }
 
 export default async function AssetDetailPage({ params }: { params: Promise<{ id: string }> }) {

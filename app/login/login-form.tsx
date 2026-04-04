@@ -17,7 +17,7 @@ export function LoginForm() {
               Private workspace
             </p>
             <h1 className="text-2xl font-bold tracking-tight text-zinc-100">
-              Academic<span className="text-indigo-400">Factory</span>
+              Paper<span className="text-indigo-400">Factory</span>
             </h1>
             <p className="mt-2 text-sm text-zinc-500">
               연구 데이터에 접근하려면 비밀번호를 입력하세요.

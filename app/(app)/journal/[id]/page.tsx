@@ -8,7 +8,7 @@ import { JournalDialog } from '@/components/module1/journal-dialog'
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const journal = await getJournal(id)
-  return { title: journal ? `${journal.name} — Academic Factory` : 'Journal Not Found' }
+  return { title: journal ? `${journal.name} — PaperFactory` : 'Journal Not Found' }
 }
 
 export default async function JournalDetailPage({ params }: { params: Promise<{ id: string }> }) {

@@ -7,7 +7,7 @@ import { DraftStatusBadge, TagBadge } from '@/components/ui/badge'
 import { DraftDialog } from '@/components/module4/draft-dialog'
 import type { DraftStatus } from '@/lib/types'
 
-export const metadata = { title: 'Draft Factory — Academic Factory' }
+export const metadata = { title: 'Draft Factory — PaperFactory' }
 
 const STATUS_ORDER: DraftStatus[] = ['drafting', 'revising', 'outline', 'ready', 'submitted']
 
