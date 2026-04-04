@@ -4,11 +4,12 @@ import { computeGuideState } from '@/lib/guide-engine'
 import { getProject } from '@/lib/actions/projects'
 import { getTracks } from '@/lib/actions/tracks'
 import { getSelectedProjectId } from '@/lib/selected-project'
+import { getSelectedTrackId } from '@/lib/selected-track'
 import { createClient } from '@/lib/supabase/server'
-import { ProjectStatusBadge, TrackStatusBadge } from '@/components/ui/badge'
+import { ProjectStatusBadge } from '@/components/ui/badge'
 import { ProjectDialog } from '@/components/module0/project-dialog'
 import { GuideCard } from '@/components/guide/guide-card'
-import type { Project, Track } from '@/lib/types'
+import type { Project, Track, TrackStage } from '@/lib/types'
 
 export const metadata = { title: 'Dashboard — PaperFactory' }
 
@@ -158,6 +159,108 @@ function calcReadiness(p: Progress): StageReadiness[] {
         (Math.min(p.resolvedReviewCount, 5)  / 5) * 60
       )),
       detail: `${p.reviewCount}개 리뷰 · ${p.resolvedReviewCount}개 해결`,
+      href: '/redteam',
+    },
+  ]
+}
+
+// ── 트랙별 M3–M6 통계 ─────────────────────────────────────
+
+interface TrackStat {
+  trackId:          string
+  hypothesisTotal:  number
+  hypothesisActive: number   // active | testing | confirmed
+  draftTotal:       number
+  draftReady:       number   // ready | submitted
+  figureTotal:      number
+  figureFinal:      number
+  reviewTotal:      number
+  reviewResolved:   number
+}
+
+async function fetchTrackStats(trackIds: string[]): Promise<Record<string, TrackStat>> {
+  if (trackIds.length === 0) return {}
+  const supabase = await createClient()
+
+  const [hyps, drafts, figs, revs] = await Promise.all([
+    supabase.from('hypotheses').select('track_id, status').in('track_id', trackIds),
+    supabase.from('drafts').select('track_id, status').in('track_id', trackIds),
+    supabase.from('figures').select('track_id, status').in('track_id', trackIds),
+    supabase.from('reviews').select('track_id, resolved').in('track_id', trackIds),
+  ])
+
+  const result: Record<string, TrackStat> = {}
+  for (const id of trackIds) {
+    const h = (hyps.data ?? []).filter((r) => r.track_id === id)
+    const d = (drafts.data ?? []).filter((r) => r.track_id === id)
+    const f = (figs.data ?? []).filter((r) => r.track_id === id)
+    const r = (revs.data ?? []).filter((r) => r.track_id === id)
+    result[id] = {
+      trackId:          id,
+      hypothesisTotal:  h.length,
+      hypothesisActive: h.filter((x) => ['active', 'testing', 'confirmed'].includes(x.status)).length,
+      draftTotal:       d.length,
+      draftReady:       d.filter((x) => ['ready', 'submitted'].includes(x.status)).length,
+      figureTotal:      f.length,
+      figureFinal:      f.filter((x) => x.status === 'final').length,
+      reviewTotal:      r.length,
+      reviewResolved:   r.filter((x) => x.resolved).length,
+    }
+  }
+  return result
+}
+
+const STAGE_LABEL_KO: Record<TrackStage, string> = {
+  hypothesis:        '가설 수립',
+  experiment_design: '실험 설계',
+  experiment:        '실험 진행',
+  validation:        '검증 중',
+  backup_design:     '백업 설계',
+  backup_experiment: '백업 실험',
+  figures:           '도표 작성',
+  draft:             '초고 작성',
+  review:            '검수 중',
+  submitted:         '제출 완료',
+}
+
+function stageBadgeClass(stage: TrackStage | null) {
+  if (!stage) return 'bg-zinc-800 text-zinc-600'
+  if (stage === 'submitted') return 'bg-emerald-900/60 text-emerald-400'
+  if (stage === 'review') return 'bg-amber-900/60 text-amber-400'
+  if (stage === 'draft' || stage === 'figures') return 'bg-emerald-900/40 text-emerald-500'
+  if (stage === 'experiment' || stage === 'backup_experiment') return 'bg-amber-900/40 text-amber-500'
+  return 'bg-indigo-900/40 text-indigo-400'
+}
+
+/** 작은 진행 바 렌더링용 데이터 */
+function trackPipelineCells(stat: TrackStat) {
+  return [
+    {
+      module: 'M3',
+      label: '가설',
+      done: stat.hypothesisActive,
+      total: Math.max(stat.hypothesisTotal, 1),
+      href: '/architect',
+    },
+    {
+      module: 'M4',
+      label: '초고',
+      done: stat.draftReady,
+      total: Math.max(stat.draftTotal, 1),
+      href: '/draft',
+    },
+    {
+      module: 'M5',
+      label: '도표',
+      done: stat.figureFinal,
+      total: Math.max(stat.figureTotal, 1),
+      href: '/figures',
+    },
+    {
+      module: 'M6',
+      label: '검수',
+      done: stat.reviewResolved,
+      total: Math.max(stat.reviewTotal, 1),
       href: '/redteam',
     },
   ]
@@ -340,7 +443,10 @@ export default async function DashboardPage() {
   }
 
   const trackIds  = tracks.map((t) => t.id)
-  const progress  = await fetchProgress(selectedProjectId, trackIds)
+  const [progress, trackStats] = await Promise.all([
+    fetchProgress(selectedProjectId, trackIds),
+    fetchTrackStats(trackIds),
+  ])
   const steps     = buildSteps(progress, tracks, project.research_intent)
   const pipeline  = getPipelineStatus(steps)
   const readiness = calcReadiness(progress)
@@ -351,6 +457,9 @@ export default async function DashboardPage() {
   const nextSteps    = pendingSteps.slice(0, 3)
   const totalDone    = doneSteps.length
   const progressPct  = Math.round((totalDone / steps.length) * 100)
+
+  const selectedTrackId = await getSelectedTrackId()
+  const validSelectedTrack = tracks.find((t) => t.id === selectedTrackId) ?? null
 
   const guideState = computeGuideState(progress, {
     researchIntent: project.research_intent,
@@ -613,42 +722,131 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* 트랙 현황 */}
-        {tracks.length > 0 && (
+        {/* 트랙별 파이프라인 진행도 */}
+        {tracks.filter((t) => t.status === 'active').length > 0 && (
           <div>
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-zinc-500">연구 트랙</h2>
+              <div>
+                <h2 className="text-sm font-semibold text-zinc-200">트랙별 파이프라인</h2>
+                <p className="mt-0.5 text-xs text-zinc-600">각 연구 트랙의 M3–M6 진행 현황</p>
+              </div>
               <Link href="/tracks" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
-                전체 보기 →
+                트랙 관리 →
               </Link>
             </div>
-            <div className="grid grid-cols-2 gap-2.5">
-              {tracks.filter((t) => t.status === 'active').slice(0, 4).map((track) => (
-                <Link
-                  key={track.id}
-                  href={`/tracks/${track.id}`}
-                  className="group flex items-start gap-3 rounded-lg border border-zinc-800 bg-zinc-900 p-4 hover:border-zinc-700 transition-colors"
-                >
-                  <span className="mt-0.5 h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: track.color }} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-zinc-300 group-hover:text-zinc-100">
-                      {track.name}
-                    </p>
-                    {track.research_intent && (
-                      <p className="mt-0.5 line-clamp-1 text-xs text-zinc-600">{track.research_intent}</p>
-                    )}
-                    <div className="mt-2 flex items-center gap-2">
-                      <TrackStatusBadge status={track.status} />
-                      {track.parent_track_id && (
-                        <span className="text-[10px] text-zinc-700">
-                          {track.relation_type === 'sequential' ? '후속' : '병렬'}
-                        </span>
-                      )}
+
+            <div className="space-y-2">
+              {tracks.filter((t) => t.status === 'active').map((track) => {
+                const stat = trackStats[track.id]
+                const isSelected = track.id === validSelectedTrack?.id
+                const cells = stat ? trackPipelineCells(stat) : []
+
+                return (
+                  <div
+                    key={track.id}
+                    className={`rounded-xl border px-5 py-4 transition-colors ${
+                      isSelected
+                        ? 'border-zinc-700 bg-zinc-900'
+                        : 'border-zinc-800 bg-zinc-900/60'
+                    }`}
+                  >
+                    {/* 트랙 헤더 */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <span
+                        className="shrink-0 h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: track.color }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-sm font-semibold text-zinc-200">
+                            {track.name}
+                          </p>
+                          {isSelected && (
+                            <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold bg-indigo-900/60 text-indigo-400">
+                              ◀ 선택됨
+                            </span>
+                          )}
+                        </div>
+                        {track.research_intent && (
+                          <p className="mt-0.5 text-[11px] text-zinc-600 truncate leading-tight">
+                            {track.research_intent}
+                          </p>
+                        )}
+                      </div>
+                      {/* 현재 단계 뱃지 */}
+                      <span className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-medium ${stageBadgeClass(track.current_stage)}`}>
+                        {track.current_stage ? STAGE_LABEL_KO[track.current_stage] : '단계 미설정'}
+                      </span>
                     </div>
+
+                    {/* M3–M6 미니 파이프라인 */}
+                    <div className="grid grid-cols-4 gap-2">
+                      {cells.map((cell) => {
+                        const pct = stat && (cell.module === 'M3' ? stat.hypothesisTotal : cell.module === 'M4' ? stat.draftTotal : cell.module === 'M5' ? stat.figureTotal : stat.reviewTotal) > 0
+                          ? Math.round((cell.done / cell.total) * 100)
+                          : 0
+                        const isEmpty = stat && (cell.module === 'M3' ? stat.hypothesisTotal : cell.module === 'M4' ? stat.draftTotal : cell.module === 'M5' ? stat.figureTotal : stat.reviewTotal) === 0
+                        return (
+                          <Link key={cell.module} href={cell.href} className="group">
+                            <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 px-2.5 py-2 group-hover:border-zinc-700 transition-colors">
+                              <div className="flex items-center justify-between mb-1.5">
+                                <span className="text-[10px] font-bold text-zinc-600">{cell.module}</span>
+                                <span className={`text-[10px] font-bold ${
+                                  isEmpty ? 'text-zinc-800' :
+                                  pct >= 100 ? 'text-emerald-400' :
+                                  pct > 0   ? 'text-indigo-400' :
+                                              'text-zinc-700'
+                                }`}>
+                                  {isEmpty ? '—' : `${cell.done}/${cell.total}`}
+                                </span>
+                              </div>
+                              <div className="h-1 w-full rounded-full bg-zinc-800 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${
+                                    pct >= 100 ? 'bg-emerald-500' :
+                                    pct > 0   ? 'bg-indigo-500' :
+                                                'bg-zinc-700'
+                                  }`}
+                                  style={{ width: `${isEmpty ? 0 : pct}%` }}
+                                />
+                              </div>
+                              <p className="mt-1 text-[9px] text-zinc-700 group-hover:text-zinc-600">{cell.label}</p>
+                            </div>
+                          </Link>
+                        )
+                      })}
+                    </div>
+
+                    {/* 날짜 정보 */}
+                    {(track.experiment_start_date || track.target_submit_date) && (
+                      <div className="mt-3 flex items-center gap-4 border-t border-zinc-800 pt-2.5">
+                        {track.experiment_start_date && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] text-zinc-700">실험 시작</span>
+                            <span className="text-[10px] font-medium text-zinc-500">{track.experiment_start_date}</span>
+                          </div>
+                        )}
+                        {track.target_submit_date && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] text-zinc-700">목표 제출</span>
+                            <span className="text-[10px] font-medium text-amber-500">{track.target_submit_date}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </Link>
-              ))}
+                )
+              })}
             </div>
+
+            {tracks.filter((t) => t.status === 'active').length === 0 && (
+              <div className="rounded-xl border border-zinc-800 px-5 py-6 text-center">
+                <p className="text-xs text-zinc-600">활성 트랙이 없습니다.</p>
+                <Link href="/tracks" className="mt-2 inline-block text-xs text-indigo-400 hover:text-indigo-300">
+                  + 트랙 만들기
+                </Link>
+              </div>
+            )}
           </div>
         )}
       </div>

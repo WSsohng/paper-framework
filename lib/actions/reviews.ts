@@ -4,14 +4,29 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import type { ActionResult, Review, ReviewInput } from '@/lib/types'
 
-export async function getReviews(draftId?: string): Promise<Review[]> {
+export async function getReviews(
+  opts: { draftId?: string; trackId?: string; projectId?: string } = {},
+): Promise<Review[]> {
   const supabase = await createClient()
+
+  let trackIds: string[] | null = null
+  if (opts.projectId) {
+    const { data: tracks } = await supabase
+      .from('tracks')
+      .select('id')
+      .eq('project_id', opts.projectId)
+    trackIds = (tracks ?? []).map((t: { id: string }) => t.id)
+    if (trackIds.length === 0) return []
+  }
+
   let query = supabase
     .from('reviews')
     .select('*, draft:drafts(id,title), track:tracks(id,name,color)')
     .order('created_at', { ascending: false })
 
-  if (draftId) query = query.eq('draft_id', draftId)
+  if (opts.draftId)  query = query.eq('draft_id', opts.draftId)
+  if (opts.trackId)  query = query.eq('track_id', opts.trackId)
+  if (trackIds)      query = query.in('track_id', trackIds)
 
   const { data, error } = await query
   if (error) throw new Error(error.message)

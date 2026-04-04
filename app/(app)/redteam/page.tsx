@@ -2,18 +2,34 @@ import Link from 'next/link'
 import { getReviews } from '@/lib/actions/reviews'
 import { getDrafts } from '@/lib/actions/drafts'
 import { getTracks } from '@/lib/actions/tracks'
+import { getSelectedProjectId } from '@/lib/selected-project'
+import { getSelectedTrackId } from '@/lib/selected-track'
 import { ReviewSeverityBadge, ReviewCategoryBadge, TagBadge } from '@/components/ui/badge'
 import { ReviewDialog } from '@/components/module6/review-dialog'
+import { TrackContextBanner } from '@/components/layout/track-context-banner'
 
 export const metadata = { title: 'Red Team — PaperFactory' }
 
 export default async function RedTeamPage() {
-  const { getSelectedProjectId } = await import('@/lib/selected-project')
   const selectedProjectId = await getSelectedProjectId()
-  const [reviews, drafts, tracks] = await Promise.all([
-    getReviews(),
-    getDrafts({ projectId: selectedProjectId ?? undefined }),
+  const [tracks, selectedTrackId] = await Promise.all([
     getTracks(selectedProjectId),
+    getSelectedTrackId(),
+  ])
+
+  const selectedTrack = tracks.find((t) => t.id === selectedTrackId) ?? null
+
+  const [reviews, drafts] = await Promise.all([
+    getReviews(
+      selectedTrack
+        ? { trackId: selectedTrack.id }
+        : { projectId: selectedProjectId ?? undefined },
+    ),
+    getDrafts(
+      selectedTrack
+        ? { trackId: selectedTrack.id }
+        : { projectId: selectedProjectId ?? undefined },
+    ),
   ])
 
   const openReviews     = reviews.filter((r) => !r.resolved)
@@ -24,9 +40,7 @@ export default async function RedTeamPage() {
       <div className="flex items-center justify-between border-b border-zinc-800 px-8 py-5">
         <div>
           <h1 className="text-lg font-semibold text-zinc-100">레드팀 & 제출</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">
-            {openReviews.length}개 미해결 · {resolvedReviews.length}개 해결됨
-          </p>
+          <p className="mt-0.5 text-sm text-zinc-500">M6 · 가상 리뷰어 검토</p>
         </div>
         <ReviewDialog
           drafts={drafts}
@@ -39,10 +53,18 @@ export default async function RedTeamPage() {
         />
       </div>
 
+      <TrackContextBanner
+        selectedTrack={selectedTrack}
+        totalCount={reviews.length}
+        label="리뷰"
+      />
+
       <div className="flex-1 px-8 py-6">
         {reviews.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
-            <p className="text-sm text-zinc-500">리뷰 코멘트가 없습니다.</p>
+            <p className="text-sm text-zinc-500">
+              {selectedTrack ? `"${selectedTrack.name}" 트랙의 리뷰가 없습니다.` : '리뷰 코멘트가 없습니다.'}
+            </p>
             <p className="mt-1 text-xs text-zinc-700">가상 리뷰어의 비판을 추가해 논문을 강화하세요.</p>
           </div>
         ) : (

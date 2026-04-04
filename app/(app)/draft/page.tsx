@@ -3,8 +3,10 @@ import { getDrafts } from '@/lib/actions/drafts'
 import { getTracks } from '@/lib/actions/tracks'
 import { getJournals } from '@/lib/actions/journals'
 import { getSelectedProjectId } from '@/lib/selected-project'
+import { getSelectedTrackId } from '@/lib/selected-track'
 import { DraftStatusBadge, TagBadge } from '@/components/ui/badge'
 import { DraftDialog } from '@/components/module4/draft-dialog'
+import { TrackContextBanner } from '@/components/layout/track-context-banner'
 import type { DraftStatus } from '@/lib/types'
 
 export const metadata = { title: 'Draft Factory — PaperFactory' }
@@ -13,11 +15,19 @@ const STATUS_ORDER: DraftStatus[] = ['drafting', 'revising', 'outline', 'ready',
 
 export default async function DraftPage() {
   const selectedProjectId = await getSelectedProjectId()
-  const [drafts, tracks, journals] = await Promise.all([
-    getDrafts({ projectId: selectedProjectId ?? undefined }),
+  const [tracks, journals, selectedTrackId] = await Promise.all([
     getTracks(selectedProjectId),
     getJournals(selectedProjectId),
+    getSelectedTrackId(),
   ])
+
+  const selectedTrack = tracks.find((t) => t.id === selectedTrackId) ?? null
+
+  const drafts = await getDrafts(
+    selectedTrack
+      ? { trackId: selectedTrack.id }
+      : { projectId: selectedProjectId ?? undefined },
+  )
 
   const grouped = STATUS_ORDER.reduce<Record<string, typeof drafts>>((acc, s) => {
     acc[s] = drafts.filter((d) => d.status === s)
@@ -29,7 +39,7 @@ export default async function DraftPage() {
       <div className="flex items-center justify-between border-b border-zinc-800 px-8 py-5">
         <div>
           <h1 className="text-lg font-semibold text-zinc-100">초고 공장</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">{drafts.length}개 초고</p>
+          <p className="mt-0.5 text-sm text-zinc-500">M4 · 논문 초고 작성</p>
         </div>
         <DraftDialog
           tracks={tracks}
@@ -42,10 +52,18 @@ export default async function DraftPage() {
         />
       </div>
 
+      <TrackContextBanner
+        selectedTrack={selectedTrack}
+        totalCount={drafts.length}
+        label="초고"
+      />
+
       <div className="flex-1 px-8 py-6">
         {drafts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
-            <p className="text-sm text-zinc-500">초고가 없습니다.</p>
+            <p className="text-sm text-zinc-500">
+              {selectedTrack ? `"${selectedTrack.name}" 트랙의 초고가 없습니다.` : '초고가 없습니다.'}
+            </p>
             <p className="mt-1 text-xs text-zinc-700">새 논문 초고를 시작해보세요.</p>
           </div>
         ) : (

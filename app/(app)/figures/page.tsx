@@ -3,8 +3,10 @@ import { getFigures } from '@/lib/actions/figures'
 import { getTracks } from '@/lib/actions/tracks'
 import { getDrafts } from '@/lib/actions/drafts'
 import { getSelectedProjectId } from '@/lib/selected-project'
+import { getSelectedTrackId } from '@/lib/selected-track'
 import { FigureStatusBadge, FigureTypeBadge, TagBadge } from '@/components/ui/badge'
 import { FigureDialog } from '@/components/module5/figure-dialog'
+import { TrackContextBanner } from '@/components/layout/track-context-banner'
 import type { FigureStatus } from '@/lib/types'
 
 export const metadata = { title: 'Figure & Data — PaperFactory' }
@@ -13,10 +15,24 @@ const STATUS_ORDER: FigureStatus[] = ['draft', 'planned', 'final']
 
 export default async function FiguresPage() {
   const selectedProjectId = await getSelectedProjectId()
-  const [figures, tracks, drafts] = await Promise.all([
-    getFigures({ projectId: selectedProjectId ?? undefined }),
+  const [tracks, selectedTrackId] = await Promise.all([
     getTracks(selectedProjectId),
-    getDrafts({ projectId: selectedProjectId ?? undefined }),
+    getSelectedTrackId(),
+  ])
+
+  const selectedTrack = tracks.find((t) => t.id === selectedTrackId) ?? null
+
+  const [figures, drafts] = await Promise.all([
+    getFigures(
+      selectedTrack
+        ? { trackId: selectedTrack.id }
+        : { projectId: selectedProjectId ?? undefined },
+    ),
+    getDrafts(
+      selectedTrack
+        ? { trackId: selectedTrack.id }
+        : { projectId: selectedProjectId ?? undefined },
+    ),
   ])
 
   const grouped = STATUS_ORDER.reduce<Record<string, typeof figures>>((acc, s) => {
@@ -29,7 +45,7 @@ export default async function FiguresPage() {
       <div className="flex items-center justify-between border-b border-zinc-800 px-8 py-5">
         <div>
           <h1 className="text-lg font-semibold text-zinc-100">그림 & 데이터</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">{figures.length}개 그림</p>
+          <p className="mt-0.5 text-sm text-zinc-500">M5 · 도표·데이터 시각화 관리</p>
         </div>
         <FigureDialog
           tracks={tracks}
@@ -42,10 +58,18 @@ export default async function FiguresPage() {
         />
       </div>
 
+      <TrackContextBanner
+        selectedTrack={selectedTrack}
+        totalCount={figures.length}
+        label="그림"
+      />
+
       <div className="flex-1 px-8 py-6">
         {figures.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
-            <p className="text-sm text-zinc-500">그림이 없습니다.</p>
+            <p className="text-sm text-zinc-500">
+              {selectedTrack ? `"${selectedTrack.name}" 트랙의 그림이 없습니다.` : '그림이 없습니다.'}
+            </p>
             <p className="mt-1 text-xs text-zinc-700">논문에 들어갈 그림을 계획하고 추적하세요.</p>
           </div>
         ) : (

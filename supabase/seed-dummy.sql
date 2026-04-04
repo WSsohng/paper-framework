@@ -399,11 +399,13 @@ INSERT INTO assets (
   '{Strategy,Planning}'
 );
 
--- ── 6. Hypotheses (4개 — 각기 다른 상태) ────────────────
+-- ── 6. Hypotheses (7개 — 트랙별 구분) ────────────────────
+--    Track 1: 2개, Track 2: 3개, Track 3: 2개
 
 INSERT INTO hypotheses (id, track_id, title, statement, rationale, status, tags)
 VALUES
 
+-- Track 1 (Transformer)
 (
   '00000000-0000-0000-0005-000000000001',
   '00000000-0000-0000-0001-000000000001',
@@ -422,6 +424,8 @@ VALUES
   'draft',
   '{ZeroShot,Foundation,Transfer}'
 ),
+
+-- Track 2 (데이터 증강)
 (
   '00000000-0000-0000-0005-000000000003',
   '00000000-0000-0000-0001-000000000002',
@@ -432,6 +436,26 @@ VALUES
   '{VAE,DataAugmentation,Validated}'
 ),
 (
+  '00000000-0000-0000-0005-000000000006',
+  '00000000-0000-0000-0001-000000000002',
+  'cGAN vs VAE 증강 품질 비교 가설',
+  'VAE 기반 증강이 cGAN 기반 증강에 비해 NIR 스펙트럼의 화학적 유효성(spectral fidelity) 측면에서 통계적으로 유의하게 우수하다.',
+  'VAE는 latent space가 연속적이며 interpolation이 자연스러워 실제 스펙트럼과의 분포 유사도가 높다는 이론적 근거. DTW 및 KL-divergence로 정량 비교 예정.',
+  'testing',
+  '{VAE,cGAN,Comparison,DataQuality}'
+),
+(
+  '00000000-0000-0000-0005-000000000007',
+  '00000000-0000-0000-0001-000000000002',
+  '최소 샘플 수 임계값 가설',
+  '합성 데이터 증강의 효과는 실제 학습 샘플이 30개 미만일 때 가장 크며, 100개 이상에서는 증강 효과가 통계적으로 유의하지 않다.',
+  'Small sample 환경에서 증강 효과가 집중된다는 경험적 관찰. n=10, 20, 30, 50, 100에서 비교 실험으로 임계값 결정 예정.',
+  'draft',
+  '{SampleSize,Threshold,SmallData}'
+),
+
+-- Track 3 (Few-shot)
+(
   '00000000-0000-0000-0005-000000000004',
   '00000000-0000-0000-0001-000000000003',
   'Prototypical Network 5-shot NIR 분류 가설',
@@ -439,80 +463,223 @@ VALUES
   'Snell 2017의 이미지 도메인 결과(76.1% 5-shot)를 스펙트럼 도메인에서 검증. 실험 결과 83.2% 달성 — 이미지 도메인 초과.',
   'testing',
   '{FewShot,Prototypical,NIR}'
+),
+(
+  '00000000-0000-0000-0005-000000000005',
+  '00000000-0000-0000-0001-000000000003',
+  '도메인 적응 없는 교차 도메인 성능 가설',
+  'NIR 식품 도메인에서 학습된 few-shot 모델은 도메인 적응 없이 제약 성분 도메인에서도 1-shot 정확도 65% 이상을 유지한다.',
+  '스펙트럼의 물리적 특성(파장-흡수 관계)이 도메인에 관계없이 일관되어, embedding space의 전이 가능성이 높다는 가설.',
+  'draft',
+  '{FewShot,CrossDomain,Transfer}'
 );
 
--- ── 7. Drafts (1개 — Track 3, revising 상태) ─────────────
+-- ── 7. Drafts (3개 — 트랙별 1개씩) ───────────────────────
 
 INSERT INTO drafts (id, track_id, journal_id, title, abstract, body, status, word_count, notes, tags)
-VALUES (
+VALUES
+
+-- Track 1 (Transformer 기반)
+(
+  '00000000-0000-0000-0006-000000000002',
+  '00000000-0000-0000-0001-000000000001',
+  '00000000-0000-0000-0003-000000000002',
+  'Vision Transformer for NIR Spectral Classification: A Transfer Learning Approach',
+  'We apply Vision Transformer (ViT) architecture to near-infrared (NIR) spectral classification using transfer learning from pre-trained image models. Our approach reformulates 1D spectral data as 2D spectral images and achieves 91.3% classification accuracy with fewer than 200 labeled samples, representing a 14.2% improvement over PLS-DA and 11.8% over SVM baselines.',
+  '1. Introduction
+[완성됨 — 배경 및 동기]
+
+2. Methods
+[완성됨 — ViT 구조, 1D→2D 변환, fine-tuning 전략]
+
+3. Results
+[초안 — Table 1, 2 완성. Figure 2 보완 필요]
+
+4. Discussion & Conclusion
+[미작성 — zero-shot 실험 추가 필요]',
+  'drafting', 5340,
+  'TrAC 투고 목표. Discussion 및 Zero-shot 실험 추가 후 제출 예정.',
+  '{ViT,NIR,TransferLearning,TrAC}'
+),
+
+-- Track 2 (데이터 증강)
+(
+  '00000000-0000-0000-0006-000000000003',
+  '00000000-0000-0000-0001-000000000002',
+  '00000000-0000-0000-0003-000000000003',
+  'Synthetic NIR Spectrum Generation Using Variational Autoencoders for Small Sample Augmentation',
+  'Data scarcity is a fundamental challenge in NIR spectroscopy. We propose a VAE-based synthetic data augmentation strategy generating chemically valid NIR spectra. Evaluation on four datasets demonstrates 22.3% accuracy improvement under n<50 sample conditions, with VAE spectra achieving higher spectral fidelity than cGAN baselines (DTW 0.031 vs 0.089).',
+  '1. Introduction [완성됨]
+2. VAE Architecture [완성됨]
+3. Experimental Setup [완성됨]
+4. Results [아웃라인, 수치 입력 중]
+5. Discussion & Conclusion [미작성]',
+  'outline', 3210,
+  'Journal of Chemometrics 1차 투고 예정. VAE vs cGAN 비교 Figure 추가 필요.',
+  '{VAE,DataAugmentation,Chemometrics}'
+),
+
+-- Track 3 (Few-shot)
+(
   '00000000-0000-0000-0006-000000000001',
   '00000000-0000-0000-0001-000000000003',
   '00000000-0000-0000-0003-000000000001',
   'Few-Shot Classification of NIR Spectra Using Prototypical Networks',
-  'We present a few-shot learning approach based on prototypical networks for rapid classification of near-infrared (NIR) spectra from novel chemical compounds. Our method achieves 83.2% classification accuracy in 5-shot settings on the NIST NIR dataset, outperforming SVM and PLS-DA baselines by 25.1 and 30.6 percentage points respectively. The proposed approach requires minimal labeled data and adapts to new compound classes without retraining, addressing the key bottleneck of calibration-intensive traditional chemometric methods.',
-  '1. Introduction
-NIR spectroscopy is widely used for rapid, non-destructive analysis...
-[서론 초안 작성 중]
-
-2. Methods
-We adopt the Prototypical Network framework (Snell et al., 2017)...
-[방법론 섹션 완성됨]
-
-3. Results and Discussion
-Table 1 shows classification accuracy across shot settings...
-[결과 섹션 초안, 추가 실험 데이터 보강 필요]
-
-4. Conclusion
-[미작성]',
+  'We present a few-shot learning approach based on prototypical networks for rapid classification of near-infrared (NIR) spectra from novel chemical compounds. Our method achieves 83.2% classification accuracy in 5-shot settings on the NIST NIR dataset, outperforming SVM and PLS-DA baselines by 25.1 and 30.6 percentage points respectively.',
+  '1. Introduction [서론 초안 작성 중]
+2. Methods [완성됨]
+3. Results and Discussion [초안, 추가 실험 데이터 필요]
+4. Conclusion [미작성]',
   'revising', 4820,
-  'Revision 1: Reviewer #1 critical 피드백(데이터셋 규모) 해결 중. NIST 외 2개 데이터셋 추가 검증 실험 설계 필요.',
+  'Revision 1: Reviewer #1 critical 피드백(데이터셋 규모) 해결 중.',
   '{FewShot,NIR,AnalyticalChemistry}'
 );
 
--- ── 8. Figures (3개 — 각기 다른 상태) ───────────────────
+-- ── 8. Figures (7개 — 트랙별 구분) ───────────────────────
+--    Track 1: 2개, Track 2: 3개, Track 3: 2개
 
 INSERT INTO figures (id, track_id, draft_id, title, type, caption, description, status, tags)
 VALUES
 
+-- Track 1 (Transformer)
+(
+  '00000000-0000-0000-0007-000000000004',
+  '00000000-0000-0000-0001-000000000001',
+  '00000000-0000-0000-0006-000000000002',
+  'ViT 기반 스펙트럼 분류 아키텍처 다이어그램',
+  'diagram',
+  'Figure 1. Architecture of the proposed ViT-based NIR spectral classification system. 1D spectra are converted to 2D spectral maps via sliding window, then processed by patch embedding and transformer encoder layers.',
+  '전체 시스템 구조도: 1D NIR → 2D Spectral Map → Patch Embedding → Transformer Encoder → Classification Head.',
+  'draft',
+  '{ViT,Architecture,Diagram}'
+),
+(
+  '00000000-0000-0000-0007-000000000005',
+  '00000000-0000-0000-0001-000000000001',
+  '00000000-0000-0000-0006-000000000002',
+  'ViT vs PLS-DA vs SVM 정확도 비교 (계획)',
+  'chart',
+  'Figure 2. Classification accuracy comparison across methods (ViT, PLS-DA, SVM) at varying training set sizes (n=50, 100, 200). Error bars: ±1 SD, 10-fold cross-validation.',
+  'Grouped bar chart: x축 샘플 수(50/100/200), y축 정확도. ViT의 소규모 샘플 우위 입증.',
+  'planned',
+  '{Comparison,Accuracy,ViT}'
+),
+
+-- Track 2 (데이터 증강)
 (
   '00000000-0000-0000-0007-000000000001',
   '00000000-0000-0000-0001-000000000002',
-  NULL,
-  '데이터 증강 방법별 성능 비교 (Final)',
+  '00000000-0000-0000-0006-000000000003',
+  '데이터 증강 방법별 성능 비교',
   'chart',
   'Figure 1. Classification accuracy of four data augmentation strategies (no augmentation, SMOTE, cGAN, VAE) at varying training set sizes. Error bars: ±1 SD, 10-fold CV.',
-  'x축: training set size (n=10,25,50,100), y축: accuracy. VAE가 n=50에서 최고 성능. 4개 방법론 grouped bar chart.',
+  'x축: training set size (n=10,25,50,100), y축: accuracy. VAE가 n=50에서 최고 성능.',
   'final',
   '{DataAugmentation,Comparison,Final}'
 ),
 (
   '00000000-0000-0000-0007-000000000002',
   '00000000-0000-0000-0001-000000000002',
-  NULL,
+  '00000000-0000-0000-0006-000000000003',
   'VAE 생성 스펙트럼 vs 실제 스펙트럼 비교',
   'graph',
-  'Figure 2. Representative NIR spectra: real measured (solid) vs VAE-generated synthetic (dashed) for three chemical compounds. Shaded regions: ±1 SD across 20 replicates.',
-  '950-1650nm 파장 범위. 실제 vs 합성 스펙트럼 시각적 유사도. 3개 화합물 대표 예시.',
+  'Figure 2. Representative NIR spectra: real measured (solid) vs VAE-generated synthetic (dashed) for three chemical compounds. Shaded regions: ±1 SD.',
+  '950-1650nm 파장 범위. 실제 vs 합성 스펙트럼 시각적 유사도.',
   'draft',
   '{VAE,Spectrum,Visualization}'
 ),
 (
+  '00000000-0000-0000-0007-000000000006',
+  '00000000-0000-0000-0001-000000000002',
+  NULL,
+  'VAE Latent Space t-SNE 시각화 (계획)',
+  'graph',
+  'Figure 3. t-SNE visualization of VAE latent space representations for 10 chemical compound classes. Well-separated clusters indicate chemically meaningful latent representations.',
+  'VAE latent space 2D 시각화. 화학물질 클래스별 클러스터 분리 확인용.',
+  'planned',
+  '{VAE,LatentSpace,tSNE}'
+),
+
+-- Track 3 (Few-shot)
+(
   '00000000-0000-0000-0007-000000000003',
   '00000000-0000-0000-0001-000000000003',
   '00000000-0000-0000-0006-000000000001',
-  'Few-shot 프레임워크 개요도 (Planned)',
+  'Few-shot 프레임워크 개요도',
   'diagram',
   'Figure 1. Overview of the proposed few-shot NIR classification framework. Support spectra are encoded via feature extractor, class prototypes computed as mean embeddings, and query spectra classified by nearest prototype distance.',
-  '전체 방법론 구조 다이어그램: Support set → Encoder → Prototype 계산 → Query 분류. 논문 Figure 1 예정.',
+  '전체 방법론 구조: Support set → Encoder → Prototype 계산 → Query 분류.',
   'planned',
   '{FewShot,Framework,Diagram}'
+),
+(
+  '00000000-0000-0000-0007-000000000007',
+  '00000000-0000-0000-0001-000000000003',
+  '00000000-0000-0000-0006-000000000001',
+  'K-shot 정확도 vs Shot 수 그래프',
+  'graph',
+  'Figure 2. Classification accuracy as a function of number of support shots (1, 3, 5, 10, 20) for Prototypical Network, SVM, and PLS-DA. Convergence analysis shows few-shot saturation point.',
+  'x축: shot 수(1/3/5/10/20), y축: 정확도. Few-shot 수렴 지점 시각화. Track 3의 핵심 결과 Figure.',
+  'final',
+  '{FewShot,Accuracy,Convergence}'
 );
 
--- ── 9. Reviews (3개 — Track 3 초고에 대한 리뷰) ──────────
+-- ── 9. Reviews (8개 — 트랙별 구분) ───────────────────────
+--    Track 1: 2개, Track 2: 3개, Track 3: 3개
 
 INSERT INTO reviews (id, draft_id, track_id, persona, feedback, severity, category, resolved, tags)
 VALUES
 
+-- Track 1 (Transformer 기반)
+(
+  '00000000-0000-0000-0008-000000000004',
+  '00000000-0000-0000-0006-000000000002',
+  '00000000-0000-0000-0001-000000000001',
+  '컴퓨터 비전 전문 리뷰어',
+  '1D 스펙트럼을 2D 이미지로 변환하는 방법론적 근거가 부족합니다. 왜 sliding window approach가 다른 변환 방법(recurrence plot, Gramian angular field)보다 우수한지 비교 실험이 필요합니다. 단순히 ViT를 적용한 것과 구별되는 novelty를 더 명확히 해야 합니다.',
+  'major', 'methodology', false,
+  '{Novelty,Methodology,Unresolved}'
+),
+(
+  '00000000-0000-0000-0008-000000000005',
+  '00000000-0000-0000-0006-000000000002',
+  '00000000-0000-0000-0001-000000000001',
+  '분석화학 전문 리뷰어',
+  'Introduction에서 NIR 분야의 pre-training 데이터 부족 문제를 충분히 논의하지 않았습니다. ImageNet pre-trained weights를 그대로 사용하는 것의 도메인 차이(RGB vs NIR) 문제를 어떻게 극복했는지 설명이 필요합니다.',
+  'minor', 'clarity', true,
+  '{DomainGap,Pretraining,Resolved}'
+),
+
+-- Track 2 (데이터 증강)
+(
+  '00000000-0000-0000-0008-000000000006',
+  '00000000-0000-0000-0006-000000000003',
+  '00000000-0000-0000-0001-000000000002',
+  '계량화학 전문 리뷰어 (통계 중심)',
+  'VAE 생성 스펙트럼의 화학적 유효성(chemical validity) 평가 방법이 불충분합니다. DTW distance만으로는 부족하며, Beer-Lambert 법칙 준수 여부, 음수 흡광도 발생 비율, 화학적 해석 가능성(interpretability) 지표가 추가되어야 합니다.',
+  'critical', 'methodology', false,
+  '{ChemicalValidity,Evaluation,Unresolved}'
+),
+(
+  '00000000-0000-0000-0008-000000000007',
+  '00000000-0000-0000-0006-000000000003',
+  '00000000-0000-0000-0001-000000000002',
+  'ML 리뷰어 (생성 모델 전공)',
+  'VAE의 KL annealing schedule이나 beta-VAE 변형 사용 여부를 명시해야 합니다. Posterior collapse 문제를 어떻게 해결했는지, reconstruction loss와 KL term의 가중치 설정 근거도 필요합니다.',
+  'major', 'methodology', true,
+  '{VAE,KLAnnealing,Resolved}'
+),
+(
+  '00000000-0000-0000-0008-000000000008',
+  '00000000-0000-0000-0006-000000000003',
+  '00000000-0000-0000-0001-000000000002',
+  '실용 응용 전문 리뷰어',
+  'cGAN 대비 VAE의 계산 비용(training time, inference time)을 비교하지 않았습니다. 실제 실험실 환경에서의 적용 가능성을 평가하려면 실용적 overhead 분석이 필요합니다.',
+  'minor', 'other', true,
+  '{ComputationalCost,Practicality,Resolved}'
+),
+
+-- Track 3 (Few-shot)
 (
   '00000000-0000-0000-0008-000000000001',
   '00000000-0000-0000-0006-000000000001',
@@ -527,7 +694,7 @@ VALUES
   '00000000-0000-0000-0006-000000000001',
   '00000000-0000-0000-0001-000000000003',
   'ML 전문 리뷰어',
-  'Prototypical Network이 NIR 스펙트럼 도메인에서 왜 효과적인지 이론적 설명이 부족합니다. Euclidean distance가 스펙트럼 공간에서 적절한 메트릭인 이유, pre-training 없이 feature extractor가 유효한 embedding을 생성하는 이유를 설명해야 합니다.',
+  'Prototypical Network이 NIR 스펙트럼 도메인에서 왜 효과적인지 이론적 설명이 부족합니다. Euclidean distance가 스펙트럼 공간에서 적절한 메트릭인 이유를 설명해야 합니다.',
   'major', 'methodology', true,
   '{Theory,Methodology,Resolved}'
 ),
@@ -536,7 +703,7 @@ VALUES
   '00000000-0000-0000-0006-000000000001',
   '00000000-0000-0000-0001-000000000003',
   '분석화학 리뷰어 (실용 응용 전공)',
-  'Abstract와 Introduction에서 기존 calibration 방법의 한계를 지나치게 부정적으로 기술하고 있습니다. PLS-DA가 현업에서 표준 방법인 이유를 인정하고, 제안 방법이 보완적임을 강조하는 방향이 더 수용적입니다.',
+  'Abstract와 Introduction에서 기존 calibration 방법의 한계를 지나치게 부정적으로 기술하고 있습니다. PLS-DA가 현업에서 표준 방법인 이유를 인정하고 제안 방법이 보완적임을 강조하는 방향이 더 수용적입니다.',
   'minor', 'clarity', true,
   '{Writing,Tone,Resolved}'
 );

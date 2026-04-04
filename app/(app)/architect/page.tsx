@@ -2,8 +2,10 @@ import Link from 'next/link'
 import { getHypotheses } from '@/lib/actions/hypotheses'
 import { getTracks } from '@/lib/actions/tracks'
 import { getSelectedProjectId } from '@/lib/selected-project'
+import { getSelectedTrackId } from '@/lib/selected-track'
 import { HypothesisStatusBadge, TagBadge } from '@/components/ui/badge'
 import { HypothesisDialog } from '@/components/module3/hypothesis-dialog'
+import { TrackContextBanner } from '@/components/layout/track-context-banner'
 import type { HypothesisStatus } from '@/lib/types'
 
 export const metadata = { title: 'Argument Architect — PaperFactory' }
@@ -12,10 +14,18 @@ const STATUS_ORDER: HypothesisStatus[] = ['active', 'testing', 'draft', 'confirm
 
 export default async function ArchitectPage() {
   const selectedProjectId = await getSelectedProjectId()
-  const [hypotheses, tracks] = await Promise.all([
-    getHypotheses({ projectId: selectedProjectId ?? undefined }),
+  const [tracks, selectedTrackId] = await Promise.all([
     getTracks(selectedProjectId),
+    getSelectedTrackId(),
   ])
+
+  const selectedTrack = tracks.find((t) => t.id === selectedTrackId) ?? null
+
+  const hypotheses = await getHypotheses(
+    selectedTrack
+      ? { trackId: selectedTrack.id }
+      : { projectId: selectedProjectId ?? undefined },
+  )
 
   const grouped = STATUS_ORDER.reduce<Record<string, typeof hypotheses>>((acc, s) => {
     acc[s] = hypotheses.filter((h) => h.status === s)
@@ -27,7 +37,7 @@ export default async function ArchitectPage() {
       <div className="flex items-center justify-between border-b border-zinc-800 px-8 py-5">
         <div>
           <h1 className="text-lg font-semibold text-zinc-100">논증 설계</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">{hypotheses.length}개 가설</p>
+          <p className="mt-0.5 text-sm text-zinc-500">M3 · 가설·논증 구조화</p>
         </div>
         <HypothesisDialog
           tracks={tracks}
@@ -39,10 +49,18 @@ export default async function ArchitectPage() {
         />
       </div>
 
+      <TrackContextBanner
+        selectedTrack={selectedTrack}
+        totalCount={hypotheses.length}
+        label="가설"
+      />
+
       <div className="flex-1 px-8 py-6">
         {hypotheses.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
-            <p className="text-sm text-zinc-500">가설이 없습니다.</p>
+            <p className="text-sm text-zinc-500">
+              {selectedTrack ? `"${selectedTrack.name}" 트랙의 가설이 없습니다.` : '가설이 없습니다.'}
+            </p>
             <p className="mt-1 text-xs text-zinc-700">연구의 핵심 논증과 가설을 정의하고 추적하세요.</p>
           </div>
         ) : (
