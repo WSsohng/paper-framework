@@ -149,6 +149,12 @@ export interface ReferencePaper {
   status: PaperStatus
   tier: PaperTier | null
   tags: string[]
+  /** AI 추출 핵심 개념 키워드 */
+  concepts: string[]
+  /** 프로젝트 Research Intent 대비 관련도 (AI, 0–1) */
+  relevance_score: number | null
+  /** 우선순위 점수: tier(45%) + 최신성(15%) + 관련도(40%), 0–100 */
+  priority_score: number | null
   created_at: string
   updated_at: string
   // joined
@@ -262,10 +268,12 @@ export interface Asset {
   reference_paper_id: string | null
   paper_section: AssetSection | null
   tags: string[]
+  /** AI 추출 개념 태그 (연결 논문 상속 or 자체 추출) */
+  concepts: string[]
   created_at: string
   updated_at: string
   project?: Pick<Project, 'id' | 'name'>
-  reference_paper?: Pick<ReferencePaper, 'id' | 'title' | 'year' | 'journal' | 'tier'>
+  reference_paper?: Pick<ReferencePaper, 'id' | 'title' | 'year' | 'journal' | 'tier' | 'concepts'>
 }
 
 export interface AssetInput {

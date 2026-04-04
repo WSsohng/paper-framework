@@ -8,6 +8,7 @@ import type { Asset, AssetSection, AssetType } from '@/lib/types'
 import { ASSET_SECTION_LABELS } from '@/lib/types'
 import { AssetInsightButton } from '@/components/module2/asset-insight-button'
 import { ModuleGuideBar } from '@/components/guide/module-guide-bar'
+import { ConceptChipList } from '@/components/ui/concept-chip'
 
 export const metadata = { title: 'Asset Library — PaperFactory' }
 
@@ -254,6 +255,18 @@ function AssetRow({
           )}
           {asset.tags.map((tag) => <TagBadge key={tag} tag={tag} />)}
         </div>
+
+        {/* 연결 논문 개념 태그 상속 표시 */}
+        {asset.reference_paper?.concepts && asset.reference_paper.concepts.length > 0 && (
+          <div className="mt-1.5 flex items-center gap-2">
+            <span className="shrink-0 text-[10px] text-zinc-700">논문 개념</span>
+            <ConceptChipList
+              concepts={asset.reference_paper.concepts}
+              max={5}
+              size="xs"
+            />
+          </div>
+        )}
       </div>
 
       <div className="flex shrink-0 items-center gap-2">

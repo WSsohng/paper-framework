@@ -69,14 +69,24 @@ export function ProjectForm({ project, onSuccess, onCancel }: Props) {
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-zinc-400 mb-1">연구 의도 (Research Intent)</label>
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-xs font-medium text-zinc-400">
+            연구 의도 (Research Intent)
+          </label>
+          <span className="rounded-full bg-indigo-950 px-2 py-0.5 text-[10px] font-medium text-indigo-400 border border-indigo-800/50">
+            ✦ AI 핵심 입력값
+          </span>
+        </div>
         <textarea
           name="research_intent"
           defaultValue={project?.research_intent ?? ''}
           rows={3}
-          placeholder="이 프로젝트에서 탐구하려는 핵심 질문이나 가설을 설명하세요"
+          placeholder="예: NIR 분광기와 딥러닝을 결합해 소량 샘플로도 고정밀 화학 성분 분류가 가능한지 검증한다"
           className={`${fieldCls} resize-none`}
         />
+        <p className="mt-1 text-[11px] text-zinc-600 leading-relaxed">
+          M0 문헌 탐색 · M1 저널 추천 · M2 인사이트 추출 등 모든 AI 기능의 기반입니다. 구체적일수록 정확도가 높아집니다.
+        </p>
       </div>
 
       <div>

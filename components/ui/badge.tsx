@@ -285,3 +285,39 @@ export function TrackStageBadge({ stage }: { stage: TrackStage | null }) {
 }
 
 export const TRACK_STAGE_CONFIG = trackStageConfig
+
+// ── Priority Score Badge ─────────────────────────────────
+// 우선순위 점수 시각화: 0–100점 → 색상 등급
+
+function priorityColor(score: number): string {
+  if (score >= 80) return 'text-rose-400 bg-rose-950/60 ring-rose-700/40'
+  if (score >= 60) return 'text-amber-400 bg-amber-950/60 ring-amber-700/40'
+  if (score >= 40) return 'text-yellow-400 bg-yellow-950/60 ring-yellow-700/40'
+  return 'text-zinc-400 bg-zinc-800/60 ring-zinc-700/40'
+}
+
+function priorityLabel(score: number): string {
+  if (score >= 80) return '핵심'
+  if (score >= 60) return '중요'
+  if (score >= 40) return '참고'
+  return '보조'
+}
+
+export function PriorityScoreBadge({ score }: { score: number | null }) {
+  if (score == null) {
+    return (
+      <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 text-zinc-600 bg-zinc-900 ring-zinc-800">
+        미분석
+      </span>
+    )
+  }
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-bold ring-1 tabular-nums ${priorityColor(score)}`}
+      title={`우선순위 점수: ${score}점 (${priorityLabel(score)})`}
+    >
+      {score}
+      <span className="text-[9px] font-normal opacity-70">{priorityLabel(score)}</span>
+    </span>
+  )
+}

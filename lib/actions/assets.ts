@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import type { ActionResult, Asset, AssetInput } from '@/lib/types'
 
-const ASSET_SELECT = '*, project:projects(id, name), reference_paper:reference_papers(id, title, year, journal, tier)'
+const ASSET_SELECT = '*, project:projects(id, name), reference_paper:reference_papers(id, title, year, journal, tier, concepts)'
 
 export async function getAssets(projectId?: string | null): Promise<Asset[]> {
   const supabase = await createClient()

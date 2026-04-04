@@ -8,6 +8,7 @@ import { getSelectedTrackId } from '@/lib/selected-track'
 import { createClient } from '@/lib/supabase/server'
 import { ProjectStatusBadge } from '@/components/ui/badge'
 import { ProjectDialog } from '@/components/module0/project-dialog'
+import { CreateFirstProjectButton } from '@/components/module0/create-first-project-button'
 import { GuideCard } from '@/components/guide/guide-card'
 import type { Project, Track, TrackStage } from '@/lib/types'
 
@@ -286,69 +287,77 @@ function buildSteps(p: Progress, tracks: Track[], intent: string | null): Step[]
     : null
 
   return [
-    {
-      id: 'tracks',
-      module: 'M0',
-      phase: '기초',
-      title: '연구 트랙 설정',
-      description: topic
-        ? `${topic} 아이디어를 구체적인 연구 주제별로 트랙을 만들어 나누세요.`
-        : '프로젝트 아이디어를 구체적인 연구 주제(트랙)로 분리해 관리하세요.',
-      href: '/tracks',
-      done: tracks.length > 0,
-      current: tracks.length,
-      target: 1,
-    },
+    // M0: 선행 연구 수집이 먼저
     {
       id: 'ref-papers',
       module: 'M0',
-      phase: '기초',
+      phase: '탐색',
       title: '선행 연구 수집',
       description: topic
-        ? `${topic} 관련 선행 연구를 5편 이상 수집하고, 핵심 논문을 선정하세요.`
-        : '관련 선행 연구를 5편 이상 수집하고 핵심 논문(key)을 선정하세요.',
+        ? `${topic} 관련 선행 연구를 5편 이상 수집하고, 핵심 논문(Key)과 티어(T1~T3)를 분류하세요.`
+        : 'AI 문헌 탐색으로 관련 선행 연구를 5편 이상 수집하고 핵심 논문을 선정하세요.',
       href: '/reference-papers',
       done: p.refPaperCount >= 5 && p.keyPaperCount >= 1,
       current: p.refPaperCount,
       target: 5,
     },
+    // 논문 탐색 후 주제별 트랙 분리
+    {
+      id: 'tracks',
+      module: 'M0',
+      phase: '탐색',
+      title: '연구 트랙 분리',
+      description: topic
+        ? `${topic} 탐색에서 발굴한 연구 방향을 트랙으로 나누세요. 각 트랙이 하나의 논문이 됩니다.`
+        : '선행 연구에서 발굴한 주제별로 트랙을 만들어 병렬로 관리하세요.',
+      href: '/tracks',
+      done: tracks.length > 0,
+      current: tracks.length,
+      target: 1,
+    },
+    // M1: 저널 전략
     {
       id: 'journals',
       module: 'M1',
       phase: '전략',
       title: '저널 후보 선정',
       description: topic
-        ? `${topic} 를 발표할 적합한 저널 후보를 2개 이상 shortlist에 등록하세요.`
+        ? `${topic} 를 발표할 적합한 저널 후보를 2개 이상 shortlist에 등록하고 트랙별 Fit을 분석하세요.`
         : '투고할 저널 후보를 2개 이상 shortlist에 등록하고 전략을 세우세요.',
       href: '/journal',
       done: p.shortlistedCount >= 2,
       current: p.shortlistedCount,
       target: 2,
     },
+    // M2: 연구 자산 (M3 가설보다 먼저 — 근거를 먼저 쌓아야 가설 논증 가능)
+    {
+      id: 'assets',
+      module: 'M2',
+      phase: '자산',
+      title: '핵심 자산 수집',
+      description: topic
+        ? `${topic} 를 뒷받침할 인용구·데이터·그림을 3개 이상 저장하세요. 논문 섹션과 연결해두면 초고 작성이 빨라집니다.`
+        : '인용구, 실험 데이터, 그림 등 논문에 활용할 자산을 3개 이상 저장하세요.',
+      href: '/assets',
+      done: p.assetCount >= 3,
+      current: p.assetCount,
+      target: 3,
+    },
+    // M3: 가설 (자산을 쌓은 뒤 논증 설계)
     {
       id: 'hypotheses',
       module: 'M3',
       phase: '논증',
       title: '연구 가설 정의',
       description: topic
-        ? `${topic} 를 검증하기 위한 핵심 가설을 최소 1개 이상 active로 설정하세요.`
-        : '연구의 핵심 가설을 정의하고 active 상태로 전환하세요.',
+        ? `수집한 자산을 바탕으로 ${topic} 를 검증할 핵심 가설을 1개 이상 active 상태로 설정하세요.`
+        : '수집한 자산을 근거로 연구의 핵심 가설을 정의하고 active 상태로 전환하세요.',
       href: '/architect',
       done: p.activeHypothesisCount >= 1,
       current: p.activeHypothesisCount,
       target: 1,
     },
-    {
-      id: 'assets',
-      module: 'M2',
-      phase: '논증',
-      title: '핵심 자산 수집',
-      description: '인용구, 실험 데이터, 그림 등 논문에 활용할 자산을 3개 이상 저장하세요.',
-      href: '/assets',
-      done: p.assetCount >= 3,
-      current: p.assetCount,
-      target: 3,
-    },
+    // M4
     {
       id: 'draft',
       module: 'M4',
@@ -360,6 +369,7 @@ function buildSteps(p: Progress, tracks: Track[], intent: string | null): Step[]
       current: p.draftCount,
       target: 1,
     },
+    // M5
     {
       id: 'figures',
       module: 'M5',
@@ -371,6 +381,7 @@ function buildSteps(p: Progress, tracks: Track[], intent: string | null): Step[]
       current: p.figureCount,
       target: 1,
     },
+    // M6
     {
       id: 'redteam',
       module: 'M6',
@@ -389,13 +400,13 @@ function buildSteps(p: Progress, tracks: Track[], intent: string | null): Step[]
 
 function getPipelineStatus(steps: Step[]) {
   return [
-    { id: 0, label: '주제\n관리',       stepIds: ['tracks', 'ref-papers'],    href: '/dashboard' },
-    { id: 1, label: '저널\n인텔리전스', stepIds: ['journals'],                href: '/journal' },
-    { id: 2, label: '자산\n라이브러리', stepIds: ['assets'],                  href: '/assets' },
-    { id: 3, label: '논증\n설계',        stepIds: ['hypotheses'],              href: '/architect' },
-    { id: 4, label: '초고\n공장',        stepIds: ['draft'],                   href: '/draft' },
-    { id: 5, label: '그림\n& 데이터',   stepIds: ['figures'],                 href: '/figures' },
-    { id: 6, label: '검토\n피드백',       stepIds: ['redteam'],                 href: '/redteam' },
+    { id: 0, label: '주제\n발굴',   stepIds: ['ref-papers', 'tracks'], href: '/reference-papers' },
+    { id: 1, label: '저널\n전략',   stepIds: ['journals'],             href: '/journal'          },
+    { id: 2, label: '연구\n자산',   stepIds: ['assets'],               href: '/assets'           },
+    { id: 3, label: '논증\n가설',   stepIds: ['hypotheses'],           href: '/architect'        },
+    { id: 4, label: '원고\n작성',   stepIds: ['draft'],                href: '/draft'            },
+    { id: 5, label: '그림\n도표',   stepIds: ['figures'],              href: '/figures'          },
+    { id: 6, label: '검토\n피드백', stepIds: ['redteam'],              href: '/redteam'          },
   ].map((mod) => ({
     ...mod,
     done:   mod.stepIds.every((id) => steps.find((s) => s.id === id)?.done),
@@ -410,21 +421,27 @@ export default async function DashboardPage() {
 
   if (!selectedProjectId) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
-        <div className="text-center">
+      <div className="flex flex-1 flex-col items-center justify-center gap-8 p-8">
+        <div className="text-center max-w-sm">
           <p className="text-4xl">🔬</p>
-          <h1 className="mt-4 text-xl font-semibold text-zinc-100">프로젝트를 선택하세요</h1>
-          <p className="mt-2 text-sm text-zinc-500">
-            왼쪽 사이드바에서 프로젝트를 선택하거나 새 프로젝트를 만들어 시작하세요.
+          <h1 className="mt-4 text-xl font-semibold text-zinc-100">PaperFactory에 오신 것을 환영합니다</h1>
+          <p className="mt-2 text-sm text-zinc-500 leading-relaxed">
+            연구 주제 발굴부터 저널 투고까지, AI와 함께 논문 작성 전 과정을 관리합니다.
           </p>
         </div>
-        <ProjectDialog
-          trigger={
-            <button className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 transition-colors">
-              + 새 프로젝트 만들기
-            </button>
-          }
-        />
+        {/* 워크플로우 미리보기 */}
+        <div className="flex items-center gap-1.5 text-[11px] text-zinc-600">
+          {['M0 주제발굴', 'M1 저널전략', 'M2 연구자산', 'M3 논증·가설', 'M4 원고작성', 'M5 그림·도표', 'M6 검토·피드백'].map((label, i, arr) => (
+            <span key={label} className="flex items-center gap-1.5">
+              <span className="rounded bg-zinc-800 px-1.5 py-0.5">{label}</span>
+              {i < arr.length - 1 && <span className="text-zinc-800">→</span>}
+            </span>
+          ))}
+        </div>
+        <div className="flex flex-col items-center gap-2">
+          <CreateFirstProjectButton />
+          <p className="text-xs text-zinc-600">프로젝트 이름과 연구 의도(Research Intent)를 입력하면 AI 기능이 활성화됩니다</p>
+        </div>
       </div>
     )
   }

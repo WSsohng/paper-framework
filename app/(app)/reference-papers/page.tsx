@@ -2,11 +2,14 @@ import Link from 'next/link'
 import { getReferencePapers } from '@/lib/actions/reference-papers'
 import { getProject } from '@/lib/actions/projects'
 import { getSelectedProjectId } from '@/lib/selected-project'
-import { PaperStatusBadge, PaperTierBadge, TagBadge, PAPER_TIER_DESC } from '@/components/ui/badge'
+import { PaperStatusBadge, PaperTierBadge, PriorityScoreBadge, TagBadge, PAPER_TIER_DESC } from '@/components/ui/badge'
 import { ReferencePaperDialog } from '@/components/module0/reference-paper-dialog'
 import { LiteratureDiscoveryPanel } from '@/components/module0/literature-discovery-panel'
 import { TierSelector } from '@/components/module0/tier-selector'
 import { TierMonitorButton } from '@/components/module0/tier-monitor-button'
+import { BatchAnalyzeButton } from '@/components/module0/batch-analyze-button'
+import { ConceptExtractButton } from '@/components/module0/concept-extract-button'
+import { ConceptChipList } from '@/components/ui/concept-chip'
 import { ModuleGuideBar } from '@/components/guide/module-guide-bar'
 
 export const metadata = { title: 'Reference Papers — PaperFactory' }
@@ -37,10 +40,14 @@ export default async function ReferencePapersPage({
   ])
 
   const keyPapers    = papers.filter((p) => p.status === 'key')
-  const activePapers = papers.filter((p) => p.status !== 'archived')
+  const activePapers = papers
+    .filter((p) => p.status !== 'archived')
+    // 우선순위 점수 내림차순 정렬 (미분석은 맨 뒤)
+    .sort((a, b) => (b.priority_score ?? -1) - (a.priority_score ?? -1))
   const tier1Papers  = papers.filter((p) => p.tier === 1)
   const tier2Papers  = papers.filter((p) => p.tier === 2)
   const tier3Papers  = papers.filter((p) => p.tier === 3)
+  const unanalyzedCount = papers.filter((p) => !p.concepts || p.concepts.length === 0).length
 
   // For discovery panel
   const existingDois   = new Set(papers.map((p) => p.doi).filter(Boolean) as string[])
@@ -139,20 +146,29 @@ export default async function ReferencePapersPage({
           />
         ) : (
           <>
-            {/* 티어 범례 */}
+            {/* 티어 범례 + 일괄 분석 버튼 */}
             {papers.length > 0 && (
-              <div className="mb-4 flex flex-wrap gap-3">
-                {([1, 2, 3] as const).map((t) => (
-                  <span key={t} className="flex items-center gap-1.5 text-xs text-zinc-600">
-                    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-bold ${
-                      t === 1 ? 'bg-red-950 text-red-400 border border-red-800/50' :
-                      t === 2 ? 'bg-amber-950 text-amber-400 border border-amber-800/50' :
-                               'bg-zinc-800 text-zinc-400 border border-zinc-700/50'
-                    }`}>T{t}</span>
-                    {PAPER_TIER_DESC[t].desc}
-                  </span>
-                ))}
-                <span className="text-xs text-zinc-700">— 각 논문 행에서 티어 클릭으로 설정</span>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  {([1, 2, 3] as const).map((t) => (
+                    <span key={t} className="flex items-center gap-1.5 text-xs text-zinc-600">
+                      <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-bold ${
+                        t === 1 ? 'bg-red-950 text-red-400 border border-red-800/50' :
+                        t === 2 ? 'bg-amber-950 text-amber-400 border border-amber-800/50' :
+                                 'bg-zinc-800 text-zinc-400 border border-zinc-700/50'
+                      }`}>T{t}</span>
+                      {PAPER_TIER_DESC[t].desc}
+                    </span>
+                  ))}
+                  <span className="text-xs text-zinc-700">— 각 논문 행에서 티어 클릭으로 설정</span>
+                </div>
+                {project?.research_intent && (
+                  <BatchAnalyzeButton
+                    projectId={selectedProjectId}
+                    researchIntent={project.research_intent}
+                    unanalyzedCount={unanalyzedCount}
+                  />
+                )}
               </div>
             )}
 
@@ -175,41 +191,54 @@ export default async function ReferencePapersPage({
                 {activePapers.map((paper) => (
                   <div
                     key={paper.id}
-                    className="group flex items-start gap-3 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3.5 hover:border-zinc-700 transition-colors"
+                    className="group rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3.5 hover:border-zinc-700 transition-colors"
                   >
-                    {/* Tier selector */}
-                    <div className="mt-0.5 shrink-0">
-                      <TierSelector paperId={paper.id} currentTier={paper.tier ?? null} />
+                    {/* 상단 행: Tier selector + 제목 + 배지들 */}
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 shrink-0">
+                        <TierSelector paperId={paper.id} currentTier={paper.tier ?? null} />
+                      </div>
+                      <Link href={`/reference-papers/${paper.id}`} className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-zinc-200 group-hover:text-zinc-100 leading-snug">
+                          {paper.title}
+                        </p>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-zinc-600">
+                          {paper.authors.length > 0 && (
+                            <span>
+                              {paper.authors.slice(0, 3).join(', ')}
+                              {paper.authors.length > 3 ? ' 외' : ''}
+                            </span>
+                          )}
+                          {paper.journal && <span>· {paper.journal}</span>}
+                          {paper.year    && <span>· {paper.year}</span>}
+                          {paper.doi     && <span>· DOI: {paper.doi}</span>}
+                        </div>
+                        {paper.tags.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {paper.tags.map((tag) => <TagBadge key={tag} tag={tag} />)}
+                          </div>
+                        )}
+                      </Link>
+                      <div className="shrink-0 flex flex-col items-end gap-1.5">
+                        {/* 우선순위 점수 */}
+                        <PriorityScoreBadge score={paper.priority_score ?? null} />
+                        <div className="flex items-center gap-1.5">
+                          <PaperTierBadge tier={paper.tier ?? null} />
+                          <PaperStatusBadge status={paper.status} />
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Content */}
-                    <Link
-                      href={`/reference-papers/${paper.id}`}
-                      className="flex-1 min-w-0"
-                    >
-                      <p className="text-sm font-medium text-zinc-200 group-hover:text-zinc-100 leading-snug">
-                        {paper.title}
-                      </p>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-zinc-600">
-                        {paper.authors.length > 0 && (
-                          <span>
-                            {paper.authors.slice(0, 3).join(', ')}
-                            {paper.authors.length > 3 ? ' 외' : ''}
-                          </span>
-                        )}
-                        {paper.journal && <span>· {paper.journal}</span>}
-                        {paper.year    && <span>· {paper.year}</span>}
-                        {paper.doi     && <span>· DOI: {paper.doi}</span>}
-                      </div>
-                      {paper.tags.length > 0 && (
-                        <div className="mt-1.5 flex flex-wrap gap-1">
-                          {paper.tags.map((tag) => <TagBadge key={tag} tag={tag} />)}
-                        </div>
+                    {/* 하단 행: 개념 태그 + AI 분석 버튼 */}
+                    <div className="mt-2.5 flex items-center justify-between gap-3 pl-8">
+                      <ConceptChipList concepts={paper.concepts ?? []} max={7} size="xs" />
+                      {project?.research_intent && (
+                        <ConceptExtractButton
+                          paperId={paper.id}
+                          researchIntent={project.research_intent}
+                          hasAnalysis={(paper.concepts?.length ?? 0) > 0}
+                        />
                       )}
-                    </Link>
-                    <div className="shrink-0 flex items-center gap-2">
-                      <PaperTierBadge tier={paper.tier ?? null} />
-                      <PaperStatusBadge status={paper.status} />
                     </div>
                   </div>
                 ))}

@@ -6,6 +6,7 @@ import { JournalStatusBadge, TagBadge } from '@/components/ui/badge'
 import { JournalDialog } from '@/components/module1/journal-dialog'
 import { JournalAiPanel } from '@/components/module1/journal-ai-panel'
 import { JournalTrackAnalysisButton } from '@/components/module1/journal-track-analysis-button'
+import { BatchJournalAnalysisButton } from '@/components/module1/batch-journal-analysis-button'
 import { ModuleGuideBar } from '@/components/guide/module-guide-bar'
 import type { Journal, TrackFitAnalysis } from '@/lib/types'
 
@@ -225,10 +226,15 @@ export default async function JournalPage() {
   const shortlisted = grouped['shortlisted'] ?? []
   const hasMultipleShortlisted = shortlisted.length >= 2
 
+  // 미분석 저널 수 (트랙이 있고 track_analyses가 비어 있는 저널)
+  const unanalyzedJournalCount = activeTracks.length > 0
+    ? journals.filter((j) => !j.track_analyses || j.track_analyses.length === 0).length
+    : 0
+
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
       {/* 헤더 */}
-      <div className="flex items-center justify-between border-b border-zinc-800 px-8 py-5">
+      <div className="flex items-start justify-between border-b border-zinc-800 px-8 py-5">
         <div>
           <h1 className="text-lg font-semibold text-zinc-100">저널 전략</h1>
           <p className="mt-0.5 text-sm text-zinc-500">
@@ -240,23 +246,35 @@ export default async function JournalPage() {
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {project && (
-            <JournalAiPanel
-              projectName={project.name}
-              researchIntent={project.research_intent}
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-2">
+            {project && (
+              <JournalAiPanel
+                projectName={project.name}
+                researchIntent={project.research_intent}
+                projectId={selectedProjectId}
+                existingNames={existingNames}
+              />
+            )}
+            <JournalDialog
               projectId={selectedProjectId}
-              existingNames={existingNames}
+              trigger={
+                <button className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors">
+                  + 직접 추가
+                </button>
+              }
+            />
+          </div>
+          {/* 일괄 트랙 분석 버튼 */}
+          {selectedProjectId && journals.length > 0 && activeTracks.length > 0 && (
+            <BatchJournalAnalysisButton
+              projectId={selectedProjectId}
+              tracks={activeTracks}
+              projectResearchIntent={project?.research_intent ?? null}
+              unanalyzedCount={unanalyzedJournalCount}
+              totalJournalCount={journals.length}
             />
           )}
-          <JournalDialog
-            projectId={selectedProjectId}
-            trigger={
-              <button className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors">
-                + 직접 추가
-              </button>
-            }
-          />
         </div>
       </div>
 
