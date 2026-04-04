@@ -101,7 +101,7 @@ export function computeGuideState(
     return { guide: g[5], step: g[5].steps[2], stepIndex: 2, moduleIndex: 5 }
   }
 
-  // ── M6 레드팀 ────────────────────────────────────────────
+  // ── M6 검토·피드백 ───────────────────────────────────────
   if (progress.reviewCount === 0) {
     return { guide: g[6], step: g[6].steps[0], stepIndex: 0, moduleIndex: 6 }
   }

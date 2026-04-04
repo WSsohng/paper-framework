@@ -21,7 +21,7 @@ export default async function TrackDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const [track, papers] = await Promise.all([getTrack(id), getPapers(id)])
+  const [track, papers] = await Promise.all([getTrack(id), getPapers({ trackId: id })])
 
   if (!track) notFound()
 

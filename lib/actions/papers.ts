@@ -4,14 +4,28 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import type { ActionResult, Paper, PaperInput } from '@/lib/types'
 
-export async function getPapers(trackId?: string): Promise<Paper[]> {
+export async function getPapers(
+  opts: { trackId?: string; projectId?: string } = {},
+): Promise<Paper[]> {
   const supabase = await createClient()
+
+  let trackIds: string[] | null = null
+  if (opts.projectId) {
+    const { data: tracks } = await supabase
+      .from('tracks')
+      .select('id')
+      .eq('project_id', opts.projectId)
+    trackIds = (tracks ?? []).map((t: { id: string }) => t.id)
+    if (trackIds.length === 0) return []
+  }
+
   let query = supabase
     .from('papers')
     .select('*, track:tracks(id, name, color)')
     .order('created_at', { ascending: false })
 
-  if (trackId) query = query.eq('track_id', trackId)
+  if (opts.trackId) query = query.eq('track_id', opts.trackId)
+  if (trackIds)     query = query.in('track_id', trackIds)
 
   const { data, error } = await query
   if (error) throw new Error(error.message)

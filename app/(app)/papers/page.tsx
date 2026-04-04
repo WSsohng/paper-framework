@@ -9,8 +9,10 @@ export const metadata = { title: 'Papers — PaperFactory' }
 
 export default async function PapersPage() {
   const selectedProjectId = await getSelectedProjectId()
-  const tracks = await getTracks(selectedProjectId)
-  const papers = await getPapers()
+  const [tracks, papers] = await Promise.all([
+    getTracks(selectedProjectId),
+    getPapers({ projectId: selectedProjectId ?? undefined }),
+  ])
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">

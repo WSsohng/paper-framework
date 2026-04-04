@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { getFigure } from '@/lib/actions/figures'
 import { getTracks } from '@/lib/actions/tracks'
 import { getDrafts } from '@/lib/actions/drafts'
+import { getSelectedProjectId } from '@/lib/selected-project'
 import { FigureStatusBadge, FigureTypeBadge, TagBadge } from '@/components/ui/badge'
 import { FigureDialog } from '@/components/module5/figure-dialog'
 
@@ -13,7 +14,12 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function FigureDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [figure, tracks, drafts] = await Promise.all([getFigure(id), getTracks(), getDrafts()])
+  const selectedProjectId = await getSelectedProjectId()
+  const [figure, tracks, drafts] = await Promise.all([
+    getFigure(id),
+    getTracks(selectedProjectId),
+    getDrafts({ projectId: selectedProjectId ?? undefined }),
+  ])
   if (!figure) notFound()
 
   return (

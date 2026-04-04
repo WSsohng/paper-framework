@@ -4,6 +4,7 @@ import { getDraft } from '@/lib/actions/drafts'
 import { getTracks } from '@/lib/actions/tracks'
 import { getJournals } from '@/lib/actions/journals'
 import { getReviews } from '@/lib/actions/reviews'
+import { getSelectedProjectId } from '@/lib/selected-project'
 import { DraftStatusBadge, ReviewSeverityBadge, ReviewCategoryBadge, TagBadge } from '@/components/ui/badge'
 import { DraftDialog } from '@/components/module4/draft-dialog'
 import { ReviewDialog } from '@/components/module6/review-dialog'
@@ -16,8 +17,12 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function DraftDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  const selectedProjectId = await getSelectedProjectId()
   const [draft, tracks, journals, reviews] = await Promise.all([
-    getDraft(id), getTracks(), getJournals(), getReviews({ draftId: id }),
+    getDraft(id),
+    getTracks(selectedProjectId),
+    getJournals(selectedProjectId),
+    getReviews({ draftId: id }),
   ])
   if (!draft) notFound()
 

@@ -108,7 +108,7 @@ export const MODULE_USAGE_GUIDE: ModuleUsageGuide[] = [
   },
   {
     tag:  'M1',
-    name: '저널 인텔리전스',
+    name: '저널 전략',
     href: '/journal',
     trigger:
       'M0에서 논문 주제 / 트랙 방향이 어느 정도 잡혔을 때. "어느 저널에 낼 것인가"를 미리 정해야 논문 구조가 달라진다.',
@@ -129,7 +129,7 @@ export const MODULE_USAGE_GUIDE: ModuleUsageGuide[] = [
   },
   {
     tag:  'M2',
-    name: '자산 라이브러리',
+    name: '연구 자산',
     href: '/assets',
     trigger:
       'M0 탐색과 병행 가능. 참고문헌을 읽으면서 논문에 쓸 인용구·데이터·그림을 즉시 저장한다.',
@@ -149,7 +149,7 @@ export const MODULE_USAGE_GUIDE: ModuleUsageGuide[] = [
   },
   {
     tag:  'M3',
-    name: '논증 설계',
+    name: '논증·가설',
     href: '/architect',
     trigger:
       'M0 주제 확정 + M1 목표 저널 결정 후. "무엇을 증명할 것인가"가 명확해야 실험을 설계할 수 있다.',
@@ -170,7 +170,7 @@ export const MODULE_USAGE_GUIDE: ModuleUsageGuide[] = [
   },
   {
     tag:  'M4',
-    name: '초고 공장',
+    name: '원고 작성',
     href: '/draft',
     trigger:
       'M3에서 가설이 "confirmed" 상태가 된 후. 실험 데이터가 일부라도 있으면 초고를 먼저 구조화할 수 있다.',
@@ -190,7 +190,7 @@ export const MODULE_USAGE_GUIDE: ModuleUsageGuide[] = [
   },
   {
     tag:  'M5',
-    name: '도표 & 데이터',
+    name: '그림·도표',
     href: '/figures',
     trigger:
       'M3 실험 진행과 병행. 데이터가 나오는 즉시 Figure 계획을 세운다.',
@@ -208,7 +208,7 @@ export const MODULE_USAGE_GUIDE: ModuleUsageGuide[] = [
   },
   {
     tag:  'M6',
-    name: '레드팀 & 제출',
+    name: '검토·피드백',
     href: '/redteam',
     trigger:
       'M4 초고가 "ready" 상태 + M5 주요 Figure 완성 후.',
@@ -228,7 +228,7 @@ export const MODULE_USAGE_GUIDE: ModuleUsageGuide[] = [
 
 export const MODULE_GUIDE_BASIS: ModuleGuideBasis[] = [
   {
-    module:  '문헌 탐색 & 주제 설정',
+    module:  '연구 주제 발굴',
     tag:     'M0',
     inputs:  [
       'Research Intent (프로젝트 핵심 아이디어)',
@@ -239,7 +239,7 @@ export const MODULE_GUIDE_BASIS: ModuleGuideBasis[] = [
     goal:    '최신 동향 기반 전략적 연구 질문 제시 → 논문 pool 누적 → 투고 가능한 주제 도출',
   },
   {
-    module:  '저널 인텔리전스',
+    module:  '저널 전략',
     tag:     'M1',
     inputs:  [
       'Research Intent',
@@ -250,7 +250,7 @@ export const MODULE_GUIDE_BASIS: ModuleGuideBasis[] = [
     goal:    '연구 범위·수준과 저널 Fit 평가 (적절/부족/과잉) → 전략적 저널 선택 지원',
   },
   {
-    module:  '자산 라이브러리',
+    module:  '연구 자산',
     tag:     'M2',
     inputs:  [
       '참고문헌 (2·3티어 인용 위주)',
@@ -259,7 +259,7 @@ export const MODULE_GUIDE_BASIS: ModuleGuideBasis[] = [
     goal:    '핵심 인용문·데이터·도표를 프로젝트 공유 자산으로 구조화',
   },
   {
-    module:  '논증 설계',
+    module:  '논증·가설',
     tag:     'M3',
     inputs:  [
       '1티어 논문 (선행 연구와 차별점 확인)',
@@ -270,7 +270,7 @@ export const MODULE_GUIDE_BASIS: ModuleGuideBasis[] = [
     goal:    'AI 가설 수립 → 코어 실험 설계 → 실험값 검증 · 재설계 피드백',
   },
   {
-    module:  '초고 공장',
+    module:  '원고 작성',
     tag:     'M4',
     inputs:  [
       'confirmed 가설 & 실험값 요약',
@@ -281,7 +281,7 @@ export const MODULE_GUIDE_BASIS: ModuleGuideBasis[] = [
     goal:    '논문 구조(서론/실험방법/결과/토론/결론) 자동 초안 → 저널 포맷 정렬',
   },
   {
-    module:  '도표 & 데이터',
+    module:  '그림·도표',
     tag:     'M5',
     inputs:  [
       '가설 & 실험값',
@@ -291,7 +291,7 @@ export const MODULE_GUIDE_BASIS: ModuleGuideBasis[] = [
     goal:    '실험값 → Figure·Table 계획 및 캡션 자동 생성 → 초고와 연결',
   },
   {
-    module:  '레드팀 & 제출',
+    module:  '검토·피드백',
     tag:     'M6',
     inputs:  [
       '목표 저널 리뷰어 프로필 (저널 scope 기반 추정)',

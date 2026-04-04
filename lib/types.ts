@@ -279,7 +279,7 @@ export interface AssetInput {
   tags?: string[]
 }
 
-// ── Module 3: Argument Architect (트랙 고유) ──────────────
+// ── Module 3: 논증·가설 (트랙 고유) ───────────────────────
 
 export type HypothesisStatus = 'draft' | 'active' | 'testing' | 'confirmed' | 'rejected'
 
@@ -305,7 +305,7 @@ export interface HypothesisInput {
   tags?: string[]
 }
 
-// ── Module 4: Draft Factory (트랙 고유) ───────────────────
+// ── Module 4: 원고 작성 (트랙 고유) ───────────────────────
 
 export type DraftStatus = 'outline' | 'drafting' | 'revising' | 'ready' | 'submitted'
 
@@ -372,7 +372,7 @@ export interface FigureInput {
   tags?: string[]
 }
 
-// ── Module 6: Red Team (트랙 고유) ───────────────────────
+// ── Module 6: 검토·피드백 (트랙 고유) ─────────────────────
 
 export type ReviewSeverity = 'minor' | 'major' | 'critical'
 export type ReviewCategory = 'methodology' | 'clarity' | 'novelty' | 'structure' | 'data' | 'other'

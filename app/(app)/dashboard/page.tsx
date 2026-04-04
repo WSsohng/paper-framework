@@ -95,7 +95,7 @@ function calcReadiness(p: Progress): StageReadiness[] {
   return [
     {
       module: 'M0',
-      label:  '문헌 탐색',
+      label:  '주제 발굴',
       score:  Math.min(100, Math.round(
         (Math.min(p.refPaperCount, 15) / 15) * 50 +  // 수량 (15편 = 50점)
         (Math.min(p.tier1Count, 3)    /  3) * 30 +  // T1 분류 (3편 = 30점)
@@ -116,7 +116,7 @@ function calcReadiness(p: Progress): StageReadiness[] {
     },
     {
       module: 'M2',
-      label:  '자산 수집',
+      label:  '연구 자산',
       score:  Math.min(100, Math.round((Math.min(p.assetCount, 10) / 10) * 100)),
       detail: `${p.assetCount}개 자산`,
       href: '/assets',
@@ -133,7 +133,7 @@ function calcReadiness(p: Progress): StageReadiness[] {
     },
     {
       module: 'M4',
-      label:  '초고 작성',
+      label:  '원고 작성',
       score:  Math.min(100, Math.round(
         (Math.min(p.draftCount, 1)      / 1) * 50 +
         (Math.min(p.readyDraftCount, 1) / 1) * 50
