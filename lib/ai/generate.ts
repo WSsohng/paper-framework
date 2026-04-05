@@ -100,7 +100,7 @@ export async function generateJson<T>(
   return parseJson<T>(text)
 }
 
-// ── Claude ───────────────────────────────────────────────
+// ── Claude (claude-haiku-4-5-20251001) ───────────────────
 
 async function callClaude(
   prompt: string,
