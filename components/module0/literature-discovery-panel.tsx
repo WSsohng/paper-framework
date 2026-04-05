@@ -218,29 +218,12 @@ export function LiteratureDiscoveryPanel({
 
   const searching = activePhase != null
 
-  // ── Step 2: 3단계 검색 플로우 ───────────────────────────
-  // Phase 1: 키워드 추출 → Phase 2: 논문 검색 → Phase 3: 관련성 검토
-  const handleSearch = useCallback(async (question: string, angle: string, insight: string | null) => {
-    if (!question.trim() || activePhase != null) return
-    setCustomQ('')
-    setPendingQ(null)
-    setQuestions([])
-
-    const roundId = crypto.randomUUID()
-
-    // 라운드 초기 생성
-    setRounds((prev) => [
-      ...prev,
-      {
-        id: roundId, question, angle, user_insight: insight,
-        keywords: null, papers: [], error: null,
-        verifications: new Map(), phase: 'extracting',
-        savedIds: new Set(), expanded: true, showUnrelated: false,
-      },
-    ])
-
-    // ── Phase 1: 키워드 추출 ────────────────────────────
+  // ── Step 2: 3단계 검색 플로우 (공통 로직) ──────────────
+  const runSearchPhases = useCallback(async (roundId: string, question: string) => {
+    // Phase 1: 키워드 추출
     setActivePhase('extracting')
+    setRounds((prev) => prev.map((r) => r.id === roundId ? { ...r, phase: 'extracting', error: null, papers: [], verifications: new Map(), keywords: null } : r))
+
     const kwResult = await extractSearchKeywords(question, intent, selectedProjectId)
     const kw = kwResult.success ? kwResult.data : null
 
@@ -248,12 +231,11 @@ export function LiteratureDiscoveryPanel({
       r.id === roundId ? { ...r, keywords: kw, phase: 'searching' } : r,
     ))
 
-    // ── Phase 2: 논문 검색 ──────────────────────────────
+    // Phase 2: 논문 검색 (클라이언트 사이드 rate limit 재시도)
     setActivePhase('searching')
     const searchQuery = kw?.search_query ?? question
     const yearFrom    = kw?.year_from    ?? undefined
 
-    // 클라이언트 사이드 rate limit 재시도 (Vercel timeout 회피)
     let searchResult = await searchPapers(searchQuery, { limit: 20, yearFrom })
     let retryCount = 0
     while (!searchResult.success && searchResult.error === 'RATE_LIMIT' && retryCount < 3) {
@@ -281,14 +263,13 @@ export function LiteratureDiscoveryPanel({
       setActivePhase(null)
       return
     }
-    const result = searchResult
 
-    const papers = result.data
+    const papers = searchResult.data
     setRounds((prev) => prev.map((r) =>
       r.id === roundId ? { ...r, papers, phase: 'verifying' } : r,
     ))
 
-    // ── Phase 3: 관련성 검토 ────────────────────────────
+    // Phase 3: 관련성 검토
     setActivePhase('verifying')
     const verifications = await verifyPaperRelevance(
       question,
@@ -303,6 +284,29 @@ export function LiteratureDiscoveryPanel({
     ))
     setActivePhase(null)
   }, [activePhase, intent, selectedProjectId])
+
+  // ── Step 2a: 새 라운드 시작 ──────────────────────────────
+  const handleSearch = useCallback(async (question: string, angle: string, insight: string | null) => {
+    if (!question.trim() || activePhase != null) return
+    setCustomQ('')
+    setPendingQ(null)
+    setQuestions([])
+
+    const roundId = crypto.randomUUID()
+
+    // 라운드 초기 생성
+    setRounds((prev) => [
+      ...prev,
+      {
+        id: roundId, question, angle, user_insight: insight,
+        keywords: null, papers: [], error: null,
+        verifications: new Map(), phase: 'extracting',
+        savedIds: new Set(), expanded: true, showUnrelated: false,
+      },
+    ])
+
+    await runSearchPhases(roundId, question)
+  }, [activePhase, runSearchPhases])
 
   // ── Save selected papers ─────────────────────────────────
   const handleSavePaper = useCallback(async (roundId: string, paper: FoundPaper) => {
@@ -672,13 +676,8 @@ export function LiteratureDiscoveryPanel({
               )
             }
             onRetry={() => {
-              // 에러 상태 초기화 후 동일 질문으로 재검색
-              setRounds((prev) =>
-                prev.map((r) =>
-                  r.id === round.id ? { ...r, error: null, phase: 'extracting', papers: [], verifications: new Map(), keywords: null } : r,
-                ),
-              )
-              handleSearch(round.question, round.angle, round.user_insight)
+              // 기존 라운드 ID 재사용 — 새 라운드 추가 없이 재검색
+              runSearchPhases(round.id, round.question)
             }}
           />
         ))}
@@ -1024,6 +1023,16 @@ function PaperRow({ paper, verification, alreadyInDb, savedNow, onSave }: PaperR
       </div>
 
       <div className="shrink-0 flex flex-col items-end gap-1.5">
+        {/* Google Scholar 검색 링크 — 무결성 확인용 */}
+        <a
+          href={`https://scholar.google.com/scholar?q=${encodeURIComponent(paper.title)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[10px] text-zinc-500 hover:text-zinc-300 border border-zinc-700 rounded px-1.5 py-0.5 transition-colors"
+          title="Google Scholar에서 확인"
+        >
+          GS
+        </a>
         {paper.open_access_url && (
           <a
             href={paper.open_access_url}
