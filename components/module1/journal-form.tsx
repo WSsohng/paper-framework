@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition, useRef, useEffect, useCallback } from 'react'
-import { createJournal, updateJournal } from '@/lib/actions/journals'
+import { createJournal, updateJournal, deleteJournal } from '@/lib/actions/journals'
 import { lookupJournal, type JournalSuggestion } from '@/lib/actions/search/journal-lookup'
 import type { Journal, JournalInput, JournalStatus } from '@/lib/types'
 
@@ -19,9 +19,10 @@ interface Props {
   projectId?: string | null
   onSuccess?: () => void
   onCancel?:  () => void
+  onDelete?:  () => void
 }
 
-export function JournalForm({ journal, projectId, onSuccess, onCancel }: Props) {
+export function JournalForm({ journal, projectId, onSuccess, onCancel, onDelete }: Props) {
   // ── form state ───────────────────────────────────────────
   const [name,          setName]          = useState(journal?.name           ?? '')
   const [publisher,     setPublisher]     = useState(journal?.publisher      ?? '')
@@ -43,9 +44,11 @@ export function JournalForm({ journal, projectId, onSuccess, onCancel }: Props) 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // ── submit ───────────────────────────────────────────────
-  const [isPending, startTransition] = useTransition()
-  const [error,     setError]         = useState<string | null>(null)
+  // ── submit / delete ─────────────────────────────────────
+  const [isPending,    startTransition]    = useTransition()
+  const [isDeleting,   startDeleteTransition] = useTransition()
+  const [error,        setError]           = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete]  = useState(false)
 
   // 드롭다운 외부 클릭 시 닫기
   useEffect(() => {
@@ -334,7 +337,7 @@ export function JournalForm({ journal, projectId, onSuccess, onCancel }: Props) 
         )}
       </div>
 
-      {/* ── 버튼 ── */}
+      {/* ── 저장 / 취소 버튼 ── */}
       <div className="flex gap-2 pt-2">
         <button
           type="submit"
@@ -353,6 +356,53 @@ export function JournalForm({ journal, projectId, onSuccess, onCancel }: Props) 
           </button>
         )}
       </div>
+
+      {/* ── 삭제 (수정 모드에서만) ── */}
+      {journal && (
+        <div className="pt-1 border-t border-zinc-800/60">
+          {!confirmDelete ? (
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              className="w-full rounded border border-red-900/50 px-4 py-2 text-sm text-red-500 hover:bg-red-950/40 hover:text-red-400 transition-colors"
+            >
+              저널 삭제
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <p className="flex-1 text-xs text-red-400">
+                "{journal.name}" 을(를) 삭제합니다. AI 분석 결과도 함께 삭제됩니다.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  startDeleteTransition(async () => {
+                    const result = await deleteJournal(journal.id)
+                    if (result.success) {
+                      onDelete?.()
+                      onSuccess?.()
+                    } else {
+                      setError(result.error)
+                      setConfirmDelete(false)
+                    }
+                  })
+                }}
+                disabled={isDeleting}
+                className="shrink-0 rounded bg-red-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
+              >
+                {isDeleting ? '삭제 중…' : '확인 삭제'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(false)}
+                className="shrink-0 rounded border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+              >
+                취소
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </form>
   )
 }

@@ -5,12 +5,13 @@ import { JournalForm } from './journal-form'
 import type { Journal } from '@/lib/types'
 
 interface Props {
-  journal?: Journal
+  journal?:   Journal
   projectId?: string | null
-  trigger: React.ReactNode
+  trigger:    React.ReactNode
+  onDelete?:  () => void
 }
 
-export function JournalDialog({ journal, projectId, trigger }: Props) {
+export function JournalDialog({ journal, projectId, trigger, onDelete }: Props) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -34,6 +35,7 @@ export function JournalDialog({ journal, projectId, trigger }: Props) {
               projectId={projectId}
               onSuccess={() => setOpen(false)}
               onCancel={() => setOpen(false)}
+              onDelete={() => { setOpen(false); onDelete?.() }}
             />
           </div>
         </div>
