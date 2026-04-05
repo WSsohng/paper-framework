@@ -102,31 +102,50 @@ export async function generateJson<T>(
 
 // ── Claude (claude-haiku-4-5-20251001) ───────────────────
 
+const CLAUDE_MODEL = 'claude-haiku-4-5-20251001'
+const MAX_RETRIES  = 3
+
 async function callClaude(
   prompt: string,
   temperature: number,
 ): Promise<{ text: string; usage: TokenUsage }> {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
-  const message = await client.messages.create({
-    model:       'claude-haiku-4-5-20251001',
-    max_tokens:  2048,
-    temperature,
-    messages:    [{ role: 'user', content: prompt }],
-  })
+  let lastError: unknown
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const message = await client.messages.create({
+        model:      CLAUDE_MODEL,
+        max_tokens: 2048,
+        temperature,
+        messages:   [{ role: 'user', content: prompt }],
+      })
 
-  const block = message.content[0]
-  if (block.type !== 'text') throw new Error('Unexpected Claude response type')
+      const block = message.content[0]
+      if (block.type !== 'text') throw new Error('Unexpected Claude response type')
 
-  return {
-    text: block.text,
-    usage: {
-      input_tokens:  message.usage.input_tokens,
-      output_tokens: message.usage.output_tokens,
-      provider: 'claude',
-      model:    'claude-haiku-4-5-20251001',
-    },
+      return {
+        text: block.text,
+        usage: {
+          input_tokens:  message.usage.input_tokens,
+          output_tokens: message.usage.output_tokens,
+          provider: 'claude',
+          model:    CLAUDE_MODEL,
+        },
+      }
+    } catch (err: unknown) {
+      lastError = err
+      const status = (err as { status?: number })?.status
+      // 429 rate limit 또는 529 overloaded → 재시도
+      if ((status === 429 || status === 529) && attempt < MAX_RETRIES - 1) {
+        const waitMs = (attempt + 1) * 5000  // 5s, 10s, 15s
+        await new Promise(resolve => setTimeout(resolve, waitMs))
+        continue
+      }
+      throw err
+    }
   }
+  throw lastError
 }
 
 // ── OpenAI ───────────────────────────────────────────────

@@ -92,6 +92,10 @@ No markdown, no explanation — pure JSON only.`
     }
     return { success: true, data: list.slice(0, 5) }
   } catch (err: unknown) {
+    const status = (err as { status?: number })?.status
+    if (status === 429) {
+      return { success: false, error: 'API 요청 한도에 도달했습니다. 30초 후 다시 시도해 주세요.' }
+    }
     const msg = err instanceof Error ? err.message : String(err)
     return { success: false, error: msg }
   }
