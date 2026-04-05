@@ -980,9 +980,19 @@ function PaperRow({ paper, verification, alreadyInDb, savedNow, onSave }: PaperR
             />
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-zinc-200 leading-snug line-clamp-2">
-              {paper.title}
-            </p>
+            <div className="flex items-start gap-1.5 flex-wrap">
+              <p className="text-sm font-medium text-zinc-200 leading-snug line-clamp-2">
+                {paper.title}
+              </p>
+              {paper.is_review && (
+                <span
+                  className="shrink-0 mt-0.5 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-amber-900/40 text-amber-400 border border-amber-800/50"
+                  title="리뷰 논문: 인용한 연구들이 구식일 수 있습니다. 원저 논문에서 직접 인사이트를 얻는 것을 권장합니다."
+                >
+                  리뷰
+                </span>
+              )}
+            </div>
             <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-zinc-600">
               {paper.authors.length > 0 && (
                 <span>{paper.authors.slice(0, 2).join(', ')}{paper.authors.length > 2 ? ' 외' : ''}</span>
@@ -993,6 +1003,11 @@ function PaperRow({ paper, verification, alreadyInDb, savedNow, onSave }: PaperR
                 <span>· 인용 {paper.citation_count.toLocaleString()}</span>
               )}
             </div>
+            {paper.is_review && (
+              <p className="mt-0.5 text-[10px] text-amber-600/70">
+                ⚠ 리뷰 논문 — 인용 논문이 오래됐을 수 있음. 원저 논문 직접 탐색 권장.
+              </p>
+            )}
             {/* 관련성 검토 노트 */}
             {verification?.note && verification.note !== '자동 검토 불가' && (
               <p className={`mt-0.5 text-[10px] leading-snug italic ${

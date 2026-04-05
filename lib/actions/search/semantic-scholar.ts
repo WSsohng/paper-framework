@@ -11,6 +11,7 @@ export interface FoundPaper {
   citation_count:  number
   open_access_url: string | null
   paper_url:       string | null
+  is_review:       boolean   // 리뷰/서베이 논문 여부
 }
 
 export type PaperSearchResult =
@@ -18,7 +19,7 @@ export type PaperSearchResult =
   | { success: false; error: string }
 
 const SS_BASE = 'https://api.semanticscholar.org/graph/v1'
-const FIELDS  = 'title,authors,year,abstract,externalIds,citationCount,publicationVenue,openAccessPdf,url'
+const FIELDS  = 'title,authors,year,abstract,externalIds,citationCount,publicationVenue,publicationTypes,openAccessPdf,url'
 
 export interface SearchOptions {
   limit?:    number
@@ -102,8 +103,18 @@ interface SemanticScholarPaper {
   externalIds:      Record<string, string> | null
   citationCount:    number
   publicationVenue: { name: string } | null
+  publicationTypes: { category: string }[] | null
   openAccessPdf:    { url: string } | null
   url:              string | null
+}
+
+const REVIEW_TITLE_KEYWORDS = /\b(review|survey|meta-analysis|meta analysis|systematic review|scoping review|overview|umbrella review)\b/i
+
+function detectReview(p: SemanticScholarPaper): boolean {
+  // Semantic Scholar publicationTypes 우선
+  if (p.publicationTypes?.some((t) => t.category === 'Review')) return true
+  // 제목 키워드 보조 감지
+  return REVIEW_TITLE_KEYWORDS.test(p.title ?? '')
 }
 
 function mapPaper(p: SemanticScholarPaper): FoundPaper {
@@ -118,5 +129,6 @@ function mapPaper(p: SemanticScholarPaper): FoundPaper {
     citation_count:  p.citationCount ?? 0,
     open_access_url: p.openAccessPdf?.url ?? null,
     paper_url:       p.url ?? null,
+    is_review:       detectReview(p),
   }
 }
