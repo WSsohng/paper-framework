@@ -49,19 +49,28 @@ export async function searchPapers(
   const apiKey = process.env.SEMANTIC_SCHOLAR_API_KEY
   if (apiKey) headers['x-api-key'] = apiKey
 
-  try {
-    const res = await fetch(`${SS_BASE}/paper/search?${params}`, {
-      headers,
-      // 5분 캐시 — 수분 내 새 논문도 반영
-      next: { revalidate: 300 },
-    })
+  const MAX_SS_RETRIES = 3
+  let lastError: string | null = null
 
-    if (!res.ok) {
-      if (res.status === 429) {
-        return { success: false, error: 'API 요청 한도 초과. 잠시 후 다시 시도해 주세요.' }
+  for (let attempt = 0; attempt < MAX_SS_RETRIES; attempt++) {
+    try {
+      const res = await fetch(`${SS_BASE}/paper/search?${params}`, {
+        headers,
+        // 5분 캐시 — 수분 내 새 논문도 반영
+        next: { revalidate: 300 },
+      })
+
+      if (!res.ok) {
+        if (res.status === 429) {
+          if (attempt < MAX_SS_RETRIES - 1) {
+            // 2s, 5s 대기 후 재시도
+            await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 2000 + 1000))
+            continue
+          }
+          return { success: false, error: 'Semantic Scholar 요청 한도 초과. 잠시 후 다시 시도해 주세요.' }
+        }
+        return { success: false, error: `Semantic Scholar 오류: HTTP ${res.status}` }
       }
-      return { success: false, error: `Semantic Scholar 오류: HTTP ${res.status}` }
-    }
 
     const json = await res.json() as {
       data:  SemanticScholarPaper[]
@@ -85,11 +94,17 @@ export async function searchPapers(
     // 최종 limit 적용
     papers = papers.slice(0, limit)
 
-    return { success: true, data: papers, total: json.total ?? papers.length }
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err)
-    return { success: false, error: `검색 실패: ${msg}` }
+      return { success: true, data: papers, total: json.total ?? papers.length }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      lastError = `검색 실패: ${msg}`
+      if (attempt < MAX_SS_RETRIES - 1) {
+        await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 2000))
+        continue
+      }
+    }
   }
+  return { success: false, error: lastError ?? '검색 실패' }
 }
 
 // ── internal ──────────────────────────────────────────────
