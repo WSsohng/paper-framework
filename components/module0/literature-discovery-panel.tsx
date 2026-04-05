@@ -253,15 +253,35 @@ export function LiteratureDiscoveryPanel({
     const searchQuery = kw?.search_query ?? question
     const yearFrom    = kw?.year_from    ?? undefined
 
-    const result = await searchPapers(searchQuery, { limit: 20, yearFrom })
-
-    if (!result.success) {
+    // 클라이언트 사이드 rate limit 재시도 (Vercel timeout 회피)
+    let searchResult = await searchPapers(searchQuery, { limit: 20, yearFrom })
+    let retryCount = 0
+    while (!searchResult.success && searchResult.error === 'RATE_LIMIT' && retryCount < 3) {
+      const waitSecs = (retryCount + 1) * 15
+      for (let s = waitSecs; s > 0; s--) {
+        setRounds((prev) => prev.map((r) =>
+          r.id === roundId ? { ...r, phase: 'searching', error: `요청 한도 초과 — ${s}초 후 재시도합니다…` } : r,
+        ))
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+      }
       setRounds((prev) => prev.map((r) =>
-        r.id === roundId ? { ...r, error: result.error, phase: 'done' } : r,
+        r.id === roundId ? { ...r, error: null, phase: 'searching' } : r,
+      ))
+      searchResult = await searchPapers(searchQuery, { limit: 20, yearFrom })
+      retryCount++
+    }
+
+    if (!searchResult.success) {
+      const msg = searchResult.error === 'RATE_LIMIT'
+        ? 'Semantic Scholar 요청 한도 초과. 잠시 후 ↻ 다시 검색 버튼을 눌러주세요.'
+        : searchResult.error
+      setRounds((prev) => prev.map((r) =>
+        r.id === roundId ? { ...r, error: msg, phase: 'done' } : r,
       ))
       setActivePhase(null)
       return
     }
+    const result = searchResult
 
     const papers = result.data
     setRounds((prev) => prev.map((r) =>
@@ -859,13 +879,23 @@ function SearchRoundCard({
         <>
           {round.error ? (
             <div className="m-3 space-y-2">
-              <ErrorBox message={round.error} />
-              <button
-                onClick={onRetry}
-                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-              >
-                ↻ 다시 검색
-              </button>
+              {round.phase === 'searching' ? (
+                // 카운트다운 중 — 진행 표시
+                <div className="flex items-center gap-2 rounded-lg border border-amber-800/40 bg-amber-950/30 px-3 py-2.5 text-xs text-amber-400">
+                  <Spinner />
+                  {round.error}
+                </div>
+              ) : (
+                <>
+                  <ErrorBox message={round.error} />
+                  <button
+                    onClick={onRetry}
+                    className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                  >
+                    ↻ 다시 검색
+                  </button>
+                </>
+              )}
             </div>
           ) : round.papers.length === 0 && round.phase === 'done' ? (
             <p className="px-4 py-3 text-sm text-zinc-600">검색 결과가 없습니다.</p>
