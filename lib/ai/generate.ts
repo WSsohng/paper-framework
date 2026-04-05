@@ -28,6 +28,8 @@ export type AIFeature =
   | 'tier_monitoring'
   | 'relevance_tagging'
   | 'track_monitoring'
+  | 'search_keywords'
+  | 'paper_verification'
   | 'other'
 
 export interface AIMeta {

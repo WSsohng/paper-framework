@@ -8,6 +8,8 @@ import {
   type SearchHistoryItem,
 } from '@/lib/actions/ai/research-questions'
 import { searchPapers, type FoundPaper } from '@/lib/actions/search/semantic-scholar'
+import { extractSearchKeywords, type KeywordExtractResult } from '@/lib/actions/ai/extract-keywords'
+import { verifyPaperRelevance, type PaperVerification, type PaperMatch } from '@/lib/actions/ai/verify-papers'
 import { createReferencePaper } from '@/lib/actions/reference-papers'
 import {
   recommendTopics,
@@ -20,15 +22,31 @@ import { createTrack } from '@/lib/actions/tracks'
 const POOL_THRESHOLD = 15   // papers needed to unlock topic recommendations
 
 // ── Types ─────────────────────────────────────────────────
+
+/** 검색 단계 표시용 */
+type SearchPhase =
+  | 'extracting'   // 키워드 추출 중
+  | 'searching'    // Semantic Scholar 검색 중
+  | 'verifying'    // 관련성 검토 중
+  | 'done'
+
 interface SearchRound {
   id:           string
   question:     string
   angle:        string
-  user_insight: string | null   // researcher's own annotation
+  user_insight: string | null
+  // ── 키워드 추출 결과
+  keywords:     KeywordExtractResult | null
+  // ── 검색 결과
   papers:       FoundPaper[]
   error:        string | null
+  // ── 관련성 검토 결과 (index → verification)
+  verifications: Map<number, PaperVerification>
+  // ── 상태
+  phase:        SearchPhase
   savedIds:     Set<string>
   expanded:     boolean
+  showUnrelated: boolean  // unrelated 논문 표시 여부 (기본 숨김)
 }
 
 interface PendingQuestion {
@@ -42,7 +60,7 @@ interface Props {
   projectName:    string
   researchIntent: string | null
   existingDois:   Set<string>
-  existingPapers: PoolPaper[]   // for topic AI context
+  existingPapers: PoolPaper[]
 }
 
 // ── Component ─────────────────────────────────────────────
@@ -54,6 +72,7 @@ export function LiteratureDiscoveryPanel({
   existingPapers,
 }: Props) {
   const router = useRouter()
+  const selectedProjectId = projectId
 
   // Questions state
   const [questions, setQuestions]       = useState<ResearchQuestion[]>([])
@@ -67,7 +86,7 @@ export function LiteratureDiscoveryPanel({
 
   // Rounds (search history)
   const [rounds, setRounds]             = useState<SearchRound[]>([])
-  const [searching, setSearching]       = useState(false)
+  const [activePhase, setActivePhase]   = useState<SearchPhase | null>(null)
 
   // Pool (accumulated saved papers this session)
   const [sessionSaved, setSessionSaved] = useState<PoolPaper[]>([])
@@ -113,35 +132,73 @@ export function LiteratureDiscoveryPanel({
     setLoadingQ(false)
   }, [intent, projectName, rounds])
 
-  // ── Step 2: Search papers for a question ────────────────
+  const searching = activePhase != null
+
+  // ── Step 2: 3단계 검색 플로우 ───────────────────────────
+  // Phase 1: 키워드 추출 → Phase 2: 논문 검색 → Phase 3: 관련성 검토
   const handleSearch = useCallback(async (question: string, angle: string, insight: string | null) => {
-    if (!question.trim() || searching) return
-    setSearching(true)
+    if (!question.trim() || activePhase != null) return
     setCustomQ('')
     setPendingQ(null)
-    setQuestions([])   // clear so user generates next round
+    setQuestions([])
 
     const roundId = crypto.randomUUID()
+
+    // 라운드 초기 생성
     setRounds((prev) => [
       ...prev,
-      { id: roundId, question, angle, user_insight: insight, papers: [], error: null, savedIds: new Set(), expanded: true },
+      {
+        id: roundId, question, angle, user_insight: insight,
+        keywords: null, papers: [], error: null,
+        verifications: new Map(), phase: 'extracting',
+        savedIds: new Set(), expanded: true, showUnrelated: false,
+      },
     ])
 
-    const result = await searchPapers(question, 15)
+    // ── Phase 1: 키워드 추출 ────────────────────────────
+    setActivePhase('extracting')
+    const kwResult = await extractSearchKeywords(question, intent, selectedProjectId)
+    const kw = kwResult.success ? kwResult.data : null
 
-    setRounds((prev) =>
-      prev.map((r) =>
-        r.id === roundId
-          ? {
-              ...r,
-              papers: result.success ? result.data : [],
-              error:  result.success ? null : result.error,
-            }
-          : r,
-      ),
+    setRounds((prev) => prev.map((r) =>
+      r.id === roundId ? { ...r, keywords: kw, phase: 'searching' } : r,
+    ))
+
+    // ── Phase 2: 논문 검색 ──────────────────────────────
+    setActivePhase('searching')
+    const searchQuery = kw?.search_query ?? question
+    const yearFrom    = kw?.year_from    ?? undefined
+
+    const result = await searchPapers(searchQuery, { limit: 20, yearFrom })
+
+    if (!result.success) {
+      setRounds((prev) => prev.map((r) =>
+        r.id === roundId ? { ...r, error: result.error, phase: 'done' } : r,
+      ))
+      setActivePhase(null)
+      return
+    }
+
+    const papers = result.data
+    setRounds((prev) => prev.map((r) =>
+      r.id === roundId ? { ...r, papers, phase: 'verifying' } : r,
+    ))
+
+    // ── Phase 3: 관련성 검토 ────────────────────────────
+    setActivePhase('verifying')
+    const verifications = await verifyPaperRelevance(
+      question,
+      intent,
+      papers.map(p => ({ title: p.title, abstract: p.abstract, year: p.year, journal: p.journal })),
+      selectedProjectId,
     )
-    setSearching(false)
-  }, [searching])
+    const verMap = new Map(verifications.map(v => [v.index, v]))
+
+    setRounds((prev) => prev.map((r) =>
+      r.id === roundId ? { ...r, verifications: verMap, phase: 'done' } : r,
+    ))
+    setActivePhase(null)
+  }, [activePhase, intent, selectedProjectId])
 
   // ── Save selected papers ─────────────────────────────────
   const handleSavePaper = useCallback(async (roundId: string, paper: FoundPaper) => {
@@ -437,13 +494,37 @@ export function LiteratureDiscoveryPanel({
           </div>
         )}
 
-        {/* Searching indicator */}
-        {searching && (
-          <div className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900/60 px-5 py-4">
-            <Spinner />
-            <div>
-              <p className="text-sm text-zinc-300">Semantic Scholar에서 검색 중…</p>
-              <p className="text-xs text-zinc-600 mt-0.5">실제 논문 데이터를 가져오고 있습니다</p>
+        {/* 3단계 진행 표시기 */}
+        {activePhase && (
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-5 py-4 space-y-3">
+            <div className="flex items-center gap-4">
+              {(
+                [
+                  { phase: 'extracting', label: '키워드 추출', desc: 'Claude가 최적 검색어 도출' },
+                  { phase: 'searching',  label: '논문 검색',   desc: 'Semantic Scholar 쿼리' },
+                  { phase: 'verifying',  label: '관련성 검토', desc: 'Claude가 결과 필터링' },
+                ] as const
+              ).map((step, i) => {
+                const phases: SearchPhase[] = ['extracting', 'searching', 'verifying']
+                const currentIdx = phases.indexOf(activePhase)
+                const stepIdx    = phases.indexOf(step.phase)
+                const isDone     = stepIdx < currentIdx
+                const isActive   = stepIdx === currentIdx
+                return (
+                  <div key={step.phase} className="flex items-center gap-2">
+                    {i > 0 && <span className="text-zinc-700">→</span>}
+                    <div className={`flex items-center gap-1.5 ${
+                      isActive ? 'text-indigo-300' : isDone ? 'text-emerald-500' : 'text-zinc-600'
+                    }`}>
+                      {isActive ? <Spinner /> : isDone ? <span>✓</span> : <span className="w-4" />}
+                      <div>
+                        <p className="text-xs font-medium">{step.label}</p>
+                        <p className="text-[10px] opacity-70">{step.desc}</p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
@@ -461,6 +542,13 @@ export function LiteratureDiscoveryPanel({
               setRounds((prev) =>
                 prev.map((r) =>
                   r.id === round.id ? { ...r, expanded: !r.expanded } : r,
+                ),
+              )
+            }
+            onToggleUnrelated={() =>
+              setRounds((prev) =>
+                prev.map((r) =>
+                  r.id === round.id ? { ...r, showUnrelated: !r.showUnrelated } : r,
                 ),
               )
             }
@@ -564,43 +652,78 @@ export function LiteratureDiscoveryPanel({
 // ── SearchRoundCard ────────────────────────────────────────
 
 interface RoundCardProps {
-  round:        SearchRound
-  roundNumber:  number
-  existingDois: Set<string>
-  onSavePaper:  (paper: FoundPaper) => void
-  onSaveAll:    () => void
-  onToggleExpand: () => void
+  round:            SearchRound
+  roundNumber:      number
+  existingDois:     Set<string>
+  onSavePaper:      (paper: FoundPaper) => void
+  onSaveAll:        () => void
+  onToggleExpand:   () => void
+  onToggleUnrelated: () => void
+}
+
+const MATCH_CONFIG: Record<PaperMatch, { label: string; dot: string; rowCls: string }> = {
+  direct:    { label: '직접 관련',  dot: 'bg-emerald-400', rowCls: '' },
+  partial:   { label: '부분 관련',  dot: 'bg-amber-400',   rowCls: 'opacity-80' },
+  unrelated: { label: '관련 없음',  dot: 'bg-zinc-600',    rowCls: 'opacity-40' },
 }
 
 function SearchRoundCard({
-  round, roundNumber, existingDois, onSavePaper, onSaveAll, onToggleExpand,
+  round, roundNumber, existingDois, onSavePaper, onSaveAll, onToggleExpand, onToggleUnrelated,
 }: RoundCardProps) {
-  const newCount  = round.papers.filter((p) => !round.savedIds.has(p.semanticId)).length
+  const verified    = round.verifications.size > 0
+  const directCount = verified
+    ? round.papers.filter((_, i) => round.verifications.get(i)?.match === 'direct').length
+    : null
+  const unrelatedCount = verified
+    ? round.papers.filter((_, i) => round.verifications.get(i)?.match === 'unrelated').length
+    : 0
+  const visiblePapers = round.papers.filter((_, i) => {
+    if (!verified || round.showUnrelated) return true
+    return round.verifications.get(i)?.match !== 'unrelated'
+  })
+  const newCount   = visiblePapers.filter((p) => !round.savedIds.has(p.semanticId)).length
   const savedCount = round.savedIds.size
 
   return (
     <div className="rounded-lg border border-zinc-800 overflow-hidden">
       {/* Round header */}
       <div className="flex items-center justify-between bg-zinc-900/80 px-4 py-3">
-        <button
-          onClick={onToggleExpand}
-          className="flex items-center gap-2.5 min-w-0 text-left"
-        >
+        <button onClick={onToggleExpand} className="flex items-center gap-2.5 min-w-0 text-left">
           <span className="shrink-0 flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800 text-[10px] font-bold text-zinc-500">
             {roundNumber}
           </span>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="rounded bg-indigo-900/50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-400">
                 {round.angle}
               </span>
               {savedCount > 0 && (
                 <span className="text-[10px] text-emerald-500">{savedCount}편 저장됨</span>
               )}
+              {directCount !== null && (
+                <span className="text-[10px] text-emerald-400/80">
+                  직접 관련 {directCount}편
+                </span>
+              )}
             </div>
             <p className="mt-0.5 text-xs text-zinc-400 leading-snug line-clamp-1">
               {round.question}
             </p>
+            {/* 추출된 키워드 태그 */}
+            {round.keywords && round.keywords.keywords.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {round.keywords.keywords.map((kw) => (
+                  <span key={kw} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] text-zinc-500 font-mono">
+                    {kw}
+                  </span>
+                ))}
+                {round.keywords.year_from && (
+                  <span className="rounded bg-zinc-800/60 px-1.5 py-0.5 text-[9px] text-zinc-600 font-mono">
+                    ≥ {round.keywords.year_from}
+                  </span>
+                )}
+              </div>
+            )}
             {round.user_insight && (
               <p className="mt-0.5 text-[10px] text-amber-500/80 leading-snug line-clamp-1 italic">
                 💡 {round.user_insight}
@@ -609,6 +732,12 @@ function SearchRoundCard({
           </div>
         </button>
         <div className="flex items-center gap-2 shrink-0 pl-2">
+          {round.phase !== 'done' && round.phase !== 'extracting' && (
+            <span className="text-[10px] text-indigo-400 flex items-center gap-1">
+              <Spinner />
+              {round.phase === 'searching' ? '검색 중' : '검토 중'}
+            </span>
+          )}
           {round.papers.length > 0 && (
             <span className="text-xs text-zinc-600">{round.papers.length}편</span>
           )}
@@ -621,30 +750,47 @@ function SearchRoundCard({
         <>
           {round.error ? (
             <ErrorBox message={round.error} className="m-3" />
-          ) : round.papers.length === 0 ? (
+          ) : round.papers.length === 0 && round.phase === 'done' ? (
             <p className="px-4 py-3 text-sm text-zinc-600">검색 결과가 없습니다.</p>
-          ) : (
+          ) : visiblePapers.length > 0 ? (
             <>
-              {/* Save all bar */}
-              {newCount > 0 && (
-                <div className="flex items-center justify-between border-b border-zinc-800/60 bg-zinc-900/40 px-4 py-2">
-                  <span className="text-xs text-zinc-500">{newCount}편 미저장</span>
+              {/* 상단 바: 저장 + unrelated 토글 */}
+              <div className="flex items-center justify-between border-b border-zinc-800/60 bg-zinc-900/40 px-4 py-2 gap-3">
+                <div className="flex items-center gap-3 text-xs text-zinc-500">
+                  {newCount > 0 && <span>{newCount}편 미저장</span>}
+                  {unrelatedCount > 0 && (
+                    <button
+                      onClick={onToggleUnrelated}
+                      className="text-zinc-600 hover:text-zinc-400 transition-colors underline"
+                    >
+                      {round.showUnrelated
+                        ? `관련 없음 ${unrelatedCount}편 숨기기`
+                        : `관련 없음 ${unrelatedCount}편 표시`}
+                    </button>
+                  )}
+                </div>
+                {newCount > 0 && (
                   <button
                     onClick={onSaveAll}
                     className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
                   >
                     전체 저장
                   </button>
-                </div>
-              )}
-              <div className="divide-y divide-zinc-800/40 max-h-80 overflow-y-auto">
-                {round.papers.map((paper) => {
+                )}
+              </div>
+
+              <div className="divide-y divide-zinc-800/40 max-h-[480px] overflow-y-auto">
+                {visiblePapers.map((paper, visIdx) => {
+                  // 원래 인덱스 (verifications 맵 키)
+                  const origIdx     = round.papers.indexOf(paper)
+                  const verification = round.verifications.get(origIdx) ?? null
                   const alreadyInDb = !!paper.doi && existingDois.has(paper.doi)
                   const savedNow    = round.savedIds.has(paper.semanticId)
                   return (
                     <PaperRow
                       key={paper.semanticId}
                       paper={paper}
+                      verification={verification}
                       alreadyInDb={alreadyInDb}
                       savedNow={savedNow}
                       onSave={() => onSavePaper(paper)}
@@ -653,7 +799,7 @@ function SearchRoundCard({
                 })}
               </div>
             </>
-          )}
+          ) : null}
         </>
       )}
     </div>
@@ -663,47 +809,71 @@ function SearchRoundCard({
 // ── PaperRow ──────────────────────────────────────────────
 
 interface PaperRowProps {
-  paper:       FoundPaper
-  alreadyInDb: boolean
-  savedNow:    boolean
-  onSave:      () => void
+  paper:        FoundPaper
+  verification: PaperVerification | null
+  alreadyInDb:  boolean
+  savedNow:     boolean
+  onSave:       () => void
 }
 
-function PaperRow({ paper, alreadyInDb, savedNow, onSave }: PaperRowProps) {
+function PaperRow({ paper, verification, alreadyInDb, savedNow, onSave }: PaperRowProps) {
   const [showAbstract, setShowAbstract] = useState(false)
-  const saved = alreadyInDb || savedNow
+  const saved  = alreadyInDb || savedNow
+  const match  = verification?.match ?? null
+  const cfg    = match ? MATCH_CONFIG[match] : null
 
   return (
-    <div className="flex items-start gap-3 px-4 py-3 bg-zinc-900/20 hover:bg-zinc-800/20 transition-colors">
+    <div className={`flex items-start gap-3 px-4 py-3 bg-zinc-900/20 hover:bg-zinc-800/20 transition-colors ${cfg?.rowCls ?? ''}`}>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-zinc-200 leading-snug line-clamp-2">
-          {paper.title}
-        </p>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-zinc-600">
-          {paper.authors.length > 0 && (
-            <span>{paper.authors.slice(0, 2).join(', ')}{paper.authors.length > 2 ? ' 외' : ''}</span>
+        <div className="flex items-start gap-2">
+          {/* 관련성 도트 */}
+          {cfg && (
+            <span
+              className={`mt-1.5 shrink-0 h-2 w-2 rounded-full ${cfg.dot}`}
+              title={`${cfg.label}${verification?.note ? ': ' + verification.note : ''}`}
+            />
           )}
-          {paper.journal && <span>· {paper.journal}</span>}
-          {paper.year    && <span>· {paper.year}</span>}
-          {paper.citation_count > 0 && (
-            <span className="text-zinc-600">· 인용 {paper.citation_count.toLocaleString()}</span>
-          )}
-        </div>
-        {paper.abstract && (
-          <div className="mt-1">
-            <button
-              onClick={() => setShowAbstract((v) => !v)}
-              className="text-[11px] text-indigo-500 hover:text-indigo-400 transition-colors"
-            >
-              {showAbstract ? '접기' : 'Abstract'}
-            </button>
-            {showAbstract && (
-              <p className="mt-1.5 text-xs text-zinc-500 leading-relaxed">
-                {paper.abstract}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-zinc-200 leading-snug line-clamp-2">
+              {paper.title}
+            </p>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-zinc-600">
+              {paper.authors.length > 0 && (
+                <span>{paper.authors.slice(0, 2).join(', ')}{paper.authors.length > 2 ? ' 외' : ''}</span>
+              )}
+              {paper.journal && <span>· {paper.journal}</span>}
+              {paper.year    && <span className="font-medium text-zinc-500">· {paper.year}</span>}
+              {paper.citation_count > 0 && (
+                <span>· 인용 {paper.citation_count.toLocaleString()}</span>
+              )}
+            </div>
+            {/* 관련성 검토 노트 */}
+            {verification?.note && verification.note !== '자동 검토 불가' && (
+              <p className={`mt-0.5 text-[10px] leading-snug italic ${
+                match === 'direct'    ? 'text-emerald-500/80' :
+                match === 'partial'   ? 'text-amber-500/70' :
+                                        'text-zinc-600'
+              }`}>
+                {cfg?.label}: {verification.note}
               </p>
             )}
+            {paper.abstract && (
+              <div className="mt-1">
+                <button
+                  onClick={() => setShowAbstract((v) => !v)}
+                  className="text-[11px] text-indigo-500 hover:text-indigo-400 transition-colors"
+                >
+                  {showAbstract ? '접기' : 'Abstract'}
+                </button>
+                {showAbstract && (
+                  <p className="mt-1.5 text-xs text-zinc-500 leading-relaxed">
+                    {paper.abstract}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       <div className="shrink-0 flex flex-col items-end gap-1.5">
