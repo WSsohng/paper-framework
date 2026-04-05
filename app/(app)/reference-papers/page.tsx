@@ -1,7 +1,10 @@
 import Link from 'next/link'
 import { getReferencePapers } from '@/lib/actions/reference-papers'
 import { getProject } from '@/lib/actions/projects'
+import { getTrack } from '@/lib/actions/tracks'
+import { getTrackRelevances } from '@/lib/actions/reference-paper-tracks'
 import { getSelectedProjectId } from '@/lib/selected-project'
+import { getSelectedTrackId } from '@/lib/selected-track'
 import { PaperStatusBadge, PaperTierBadge, PriorityScoreBadge, TagBadge, PAPER_TIER_DESC } from '@/components/ui/badge'
 import { ReferencePaperDialog } from '@/components/module0/reference-paper-dialog'
 import { LiteratureDiscoveryPanel } from '@/components/module0/literature-discovery-panel'
@@ -11,6 +14,11 @@ import { BatchAnalyzeButton } from '@/components/module0/batch-analyze-button'
 import { ConceptExtractButton } from '@/components/module0/concept-extract-button'
 import { ConceptChipList } from '@/components/ui/concept-chip'
 import { ModuleGuideBar } from '@/components/guide/module-guide-bar'
+import { RelevanceBadge } from '@/components/module0/relevance-badge'
+import { RelevanceTagButton } from '@/components/module0/relevance-tag-button'
+import { BatchRelevanceButton } from '@/components/module0/batch-relevance-button'
+import { TrackMonitorButton } from '@/components/module0/track-monitor-button'
+import type { TrackRelevance } from '@/lib/types'
 
 export const metadata = { title: 'Reference Papers — PaperFactory' }
 
@@ -25,6 +33,7 @@ export default async function ReferencePapersPage({
   const isDiscover = view !== 'list'
 
   const selectedProjectId = await getSelectedProjectId()
+  const selectedTrackId   = await getSelectedTrackId()
 
   if (!selectedProjectId) {
     return (
@@ -34,20 +43,37 @@ export default async function ReferencePapersPage({
     )
   }
 
-  const [papers, project] = await Promise.all([
+  const [papers, project, selectedTrack, trackRelevances] = await Promise.all([
     getReferencePapers(selectedProjectId),
     getProject(selectedProjectId),
+    selectedTrackId ? getTrack(selectedTrackId) : Promise.resolve(null),
+    selectedTrackId ? getTrackRelevances(selectedProjectId, selectedTrackId) : Promise.resolve([]),
   ])
+
+  // R레벨 맵: paperId → TrackRelevance (트랙 선택 시만 의미있음)
+  const relevanceMap = new Map<string, TrackRelevance>(
+    trackRelevances.map(r => [r.reference_paper_id, r]),
+  )
 
   const keyPapers    = papers.filter((p) => p.status === 'key')
   const activePapers = papers
     .filter((p) => p.status !== 'archived')
-    // 우선순위 점수 내림차순 정렬 (미분석은 맨 뒤)
-    .sort((a, b) => (b.priority_score ?? -1) - (a.priority_score ?? -1))
+    .sort((a, b) => {
+      if (selectedTrackId) {
+        // 트랙 선택 시: R1→R2→R3→미태깅 우선, 동일 R레벨은 priority_score 내림차순
+        const ra = relevanceMap.get(a.id)?.relevance_level ?? 4
+        const rb = relevanceMap.get(b.id)?.relevance_level ?? 4
+        if (ra !== rb) return ra - rb
+      }
+      return (b.priority_score ?? -1) - (a.priority_score ?? -1)
+    })
   const tier1Papers  = papers.filter((p) => p.tier === 1)
   const tier2Papers  = papers.filter((p) => p.tier === 2)
   const tier3Papers  = papers.filter((p) => p.tier === 3)
-  const unanalyzedCount = papers.filter((p) => !p.concepts || p.concepts.length === 0).length
+  const unanalyzedCount       = papers.filter((p) => !p.concepts || p.concepts.length === 0).length
+  const untaggedRelevanceCount = selectedTrackId
+    ? activePapers.filter((p) => !relevanceMap.has(p.id)).length
+    : 0
 
   // For discovery panel
   const existingDois   = new Set(papers.map((p) => p.doi).filter(Boolean) as string[])
@@ -77,6 +103,18 @@ export default async function ReferencePapersPage({
               <span className="text-zinc-500">T3 {tier3Papers.length}편</span>
             )}
             <span className="text-zinc-700">· 프로젝트 공유</span>
+            {selectedTrack && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium border"
+                style={{
+                  color:            selectedTrack.color,
+                  borderColor:      selectedTrack.color + '66',
+                  backgroundColor:  selectedTrack.color + '18',
+                }}
+              >
+                ◉ {selectedTrack.name} 트랙 선택됨
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -146,28 +184,89 @@ export default async function ReferencePapersPage({
           />
         ) : (
           <>
-            {/* 티어 범례 + 일괄 분석 버튼 */}
+            {/* 티어 범례 + 일괄 분석 / R태깅 버튼 */}
             {papers.length > 0 && (
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-3">
-                  {([1, 2, 3] as const).map((t) => (
-                    <span key={t} className="flex items-center gap-1.5 text-xs text-zinc-600">
-                      <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-bold ${
-                        t === 1 ? 'bg-red-950 text-red-400 border border-red-800/50' :
-                        t === 2 ? 'bg-amber-950 text-amber-400 border border-amber-800/50' :
-                                 'bg-zinc-800 text-zinc-400 border border-zinc-700/50'
-                      }`}>T{t}</span>
-                      {PAPER_TIER_DESC[t].desc}
-                    </span>
-                  ))}
-                  <span className="text-xs text-zinc-700">— 각 논문 행에서 티어 클릭으로 설정</span>
+              <div className="mb-4 space-y-3">
+                {/* Tier 범례 + 개념 일괄 분석 */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    {([1, 2, 3] as const).map((t) => (
+                      <span key={t} className="flex items-center gap-1.5 text-xs text-zinc-600">
+                        <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-bold ${
+                          t === 1 ? 'bg-red-950 text-red-400 border border-red-800/50' :
+                          t === 2 ? 'bg-amber-950 text-amber-400 border border-amber-800/50' :
+                                   'bg-zinc-800 text-zinc-400 border border-zinc-700/50'
+                        }`}>T{t}</span>
+                        {PAPER_TIER_DESC[t].desc}
+                      </span>
+                    ))}
+                    <span className="text-xs text-zinc-700">— 각 논문 행에서 티어 클릭으로 설정</span>
+                  </div>
+                  {project?.research_intent && (
+                    <BatchAnalyzeButton
+                      projectId={selectedProjectId}
+                      researchIntent={project.research_intent}
+                      unanalyzedCount={unanalyzedCount}
+                    />
+                  )}
                 </div>
-                {project?.research_intent && (
-                  <BatchAnalyzeButton
-                    projectId={selectedProjectId}
-                    researchIntent={project.research_intent}
-                    unanalyzedCount={unanalyzedCount}
-                  />
+
+                {/* 트랙 선택 시: R레벨 범례 + 일괄 R태깅 + 트랙 모니터링 */}
+                {selectedTrack && selectedTrack.research_intent && (
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="text-xs font-medium text-zinc-400">
+                          연관도 (트랙: {selectedTrack.name})
+                        </span>
+                        {([1, 2, 3] as const).map((r) => {
+                          const counts = [
+                            trackRelevances.filter(t => t.relevance_level === 1).length,
+                            trackRelevances.filter(t => t.relevance_level === 2).length,
+                            trackRelevances.filter(t => t.relevance_level === 3).length,
+                          ]
+                          const labels = ['핵심 연관', '부분 연관', '배경 연관']
+                          const colors = [
+                            'bg-emerald-100 text-emerald-800 border-emerald-300',
+                            'bg-sky-100 text-sky-800 border-sky-300',
+                            'bg-zinc-100 text-zinc-600 border-zinc-300',
+                          ]
+                          return (
+                            <span key={r} className="flex items-center gap-1 text-xs text-zinc-600">
+                              <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-bold font-mono ${colors[r-1]}`}>
+                                R{r}
+                              </span>
+                              {labels[r-1]}
+                              {counts[r-1] > 0 && (
+                                <span className="text-zinc-500">({counts[r-1]})</span>
+                              )}
+                            </span>
+                          )
+                        })}
+                        {untaggedRelevanceCount > 0 && (
+                          <span className="text-xs text-zinc-600">
+                            미태깅 {untaggedRelevanceCount}편
+                          </span>
+                        )}
+                      </div>
+                      <BatchRelevanceButton
+                        projectId={selectedProjectId}
+                        trackId={selectedTrack.id}
+                        trackName={selectedTrack.name}
+                        trackResearchIntent={selectedTrack.research_intent}
+                        untaggedCount={untaggedRelevanceCount}
+                        totalCount={activePapers.length}
+                      />
+                    </div>
+                    {/* 트랙 연관 논문 모니터링 (새로고침) */}
+                    <TrackMonitorButton
+                      trackId={selectedTrack.id}
+                      trackName={selectedTrack.name}
+                      trackResearchIntent={selectedTrack.research_intent}
+                      projectId={selectedProjectId}
+                      existingDois={papers.map(p => p.doi ?? '').filter(Boolean)}
+                    />
+                  </div>
                 )}
               </div>
             )}
@@ -188,10 +287,18 @@ export default async function ReferencePapersPage({
               </div>
             ) : (
               <div className="space-y-1.5">
-                {activePapers.map((paper) => (
+                {activePapers.map((paper) => {
+                  const paperRelevance = selectedTrackId ? relevanceMap.get(paper.id) ?? null : null
+                  return (
                   <div
                     key={paper.id}
-                    className="group rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3.5 hover:border-zinc-700 transition-colors"
+                    className={`group rounded-lg border bg-zinc-900 px-4 py-3.5 hover:border-zinc-700 transition-colors ${
+                      paperRelevance?.relevance_level === 1
+                        ? 'border-emerald-800/60 hover:border-emerald-700'
+                        : paperRelevance?.relevance_level === 2
+                        ? 'border-sky-800/50 hover:border-sky-700'
+                        : 'border-zinc-800'
+                    }`}
                   >
                     {/* 상단 행: Tier selector + 제목 + 배지들 */}
                     <div className="flex items-start gap-3">
@@ -220,6 +327,16 @@ export default async function ReferencePapersPage({
                         )}
                       </Link>
                       <div className="shrink-0 flex flex-col items-end gap-1.5">
+                        {/* 트랙 선택 시: R레벨 태그 버튼 */}
+                        {selectedTrack && selectedTrack.research_intent && (
+                          <RelevanceTagButton
+                            paperId={paper.id}
+                            trackId={selectedTrack.id}
+                            trackResearchIntent={selectedTrack.research_intent}
+                            projectId={selectedProjectId}
+                            existing={paperRelevance}
+                          />
+                        )}
                         {/* 우선순위 점수 */}
                         <PriorityScoreBadge score={paper.priority_score ?? null} />
                         <div className="flex items-center gap-1.5">
@@ -241,7 +358,8 @@ export default async function ReferencePapersPage({
                       )}
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </>

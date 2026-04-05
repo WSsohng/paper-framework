@@ -175,6 +175,36 @@ export interface ReferencePaperInput {
   tags?: string[]
 }
 
+// ── Module 0: Track-Paper Relevance (junction) ───────────
+
+/**
+ * 트랙별 논문 연관도:
+ * 1 (R1) = 핵심 연관 — 트랙이 직접 다루는 방법론·결과·주제
+ * 2 (R2) = 부분 연관 — 방법론·개념 공유, 보강 근거로 활용
+ * 3 (R3) = 배경 연관 — 분야 맥락, 서론·배경 참조용
+ *
+ * ※ Tier(T1-T3)와 독립적: 같은 논문이 트랙A에서는 R1, 트랙B에서는 R3일 수 있음
+ */
+export type RelevanceLevel = 1 | 2 | 3
+
+export interface TrackRelevance {
+  reference_paper_id: string
+  track_id: string
+  relevance_level: RelevanceLevel
+  relevance_reason: string | null
+  tagged_by: 'ai' | 'user'
+  created_at: string
+  updated_at: string
+}
+
+export interface TrackRelevanceInput {
+  reference_paper_id: string
+  track_id: string
+  relevance_level: RelevanceLevel
+  relevance_reason?: string
+  tagged_by?: 'ai' | 'user'
+}
+
 // ── Module 1: Journal Intel (프로젝트 공유) ───────────────
 
 export type JournalStatus =

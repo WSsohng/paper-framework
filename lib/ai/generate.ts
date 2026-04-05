@@ -26,6 +26,8 @@ export type AIFeature =
   | 'topic_recommendation'
   | 'timeliness_analysis'
   | 'tier_monitoring'
+  | 'relevance_tagging'
+  | 'track_monitoring'
   | 'other'
 
 export interface AIMeta {

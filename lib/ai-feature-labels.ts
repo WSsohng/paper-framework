@@ -9,5 +9,7 @@ export const FEATURE_LABELS: Record<string, string> = {
   topic_recommendation:   '주제 추천',
   timeliness_analysis:    '시의성 분석',
   tier_monitoring:        'T1 논문 모니터링',
+  relevance_tagging:      '트랙 연관도 태깅',
+  track_monitoring:       '트랙 연관 모니터링',
   other:                  '기타',
 }
