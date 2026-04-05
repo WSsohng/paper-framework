@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   generateResearchQuestions,
@@ -63,6 +63,69 @@ interface Props {
   existingPapers: PoolPaper[]
 }
 
+// ── Session persistence helpers ───────────────────────────
+
+type SerializedRound = Omit<SearchRound, 'verifications' | 'savedIds'> & {
+  verifications: [number, PaperVerification][]
+  savedIds:      string[]
+}
+
+function serializeRound(r: SearchRound): SerializedRound {
+  return {
+    ...r,
+    verifications: Array.from(r.verifications.entries()),
+    savedIds:      Array.from(r.savedIds),
+  }
+}
+
+function deserializeRound(r: SerializedRound): SearchRound {
+  return {
+    ...r,
+    phase:         r.phase === 'done' ? 'done' : 'done', // 미완료 라운드는 done으로 처리
+    verifications: new Map(r.verifications),
+    savedIds:      new Set(r.savedIds),
+  }
+}
+
+function sessionKey(projectId: string) {
+  return `paper-discovery-${projectId}`
+}
+
+function loadSession(projectId: string): {
+  rounds:     SearchRound[]
+  questions:  ResearchQuestion[]
+  isFollowUp: boolean
+} | null {
+  try {
+    const raw = localStorage.getItem(sessionKey(projectId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return {
+      rounds:     (parsed.rounds ?? []).map(deserializeRound),
+      questions:  parsed.questions ?? [],
+      isFollowUp: parsed.isFollowUp ?? false,
+    }
+  } catch {
+    return null
+  }
+}
+
+function saveSession(projectId: string, data: {
+  rounds:     SearchRound[]
+  questions:  ResearchQuestion[]
+  isFollowUp: boolean
+}) {
+  try {
+    localStorage.setItem(sessionKey(projectId), JSON.stringify({
+      rounds:     data.rounds.map(serializeRound),
+      questions:  data.questions,
+      isFollowUp: data.isFollowUp,
+    }))
+  } catch {
+    // 스토리지 용량 초과 등 무시
+  }
+}
+
 // ── Component ─────────────────────────────────────────────
 export function LiteratureDiscoveryPanel({
   projectId,
@@ -73,6 +136,9 @@ export function LiteratureDiscoveryPanel({
 }: Props) {
   const router = useRouter()
   const selectedProjectId = projectId
+
+  // ── Session restore (localStorage) ─────────────────────
+  const [sessionLoaded, setSessionLoaded] = useState(false)
 
   // Questions state
   const [questions, setQuestions]       = useState<ResearchQuestion[]>([])
@@ -98,6 +164,24 @@ export function LiteratureDiscoveryPanel({
   const [topicsError, setTopicsError]   = useState<string | null>(null)
   const [customTopic, setCustomTopic]   = useState('')
   const [creatingTrack, setCreatingTrack] = useState(false)
+
+  // ── localStorage: 마운트 시 복원 ───────────────────────
+  useEffect(() => {
+    const saved = loadSession(projectId)
+    if (saved) {
+      if (saved.rounds.length > 0)    setRounds(saved.rounds)
+      if (saved.questions.length > 0) setQuestions(saved.questions)
+      setIsFollowUp(saved.isFollowUp)
+    }
+    setSessionLoaded(true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId])
+
+  // ── localStorage: 변경 시 자동저장 ─────────────────────
+  useEffect(() => {
+    if (!sessionLoaded) return
+    saveSession(projectId, { rounds, questions, isFollowUp })
+  }, [projectId, rounds, questions, isFollowUp, sessionLoaded])
 
   // ── Derived ─────────────────────────────────────────────
   const intent           = researchIntent?.trim() ?? ''
@@ -336,7 +420,7 @@ export function LiteratureDiscoveryPanel({
         )}
 
         {/* Question generation */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={handleGenerateQuestions}
             disabled={loadingQ || searching}
@@ -356,6 +440,21 @@ export function LiteratureDiscoveryPanel({
             <span className="text-xs text-zinc-600">
               {isFollowUp ? '후속' : ''} 질문 {questions.length}개
             </span>
+          )}
+          {rounds.length > 0 && (
+            <button
+              onClick={() => {
+                if (!confirm('이번 탐색 세션을 초기화할까요? 저장된 논문은 유지됩니다.')) return
+                localStorage.removeItem(sessionKey(projectId))
+                setRounds([])
+                setQuestions([])
+                setIsFollowUp(false)
+                setPendingQ(null)
+              }}
+              className="ml-auto text-xs text-zinc-600 hover:text-red-400 transition-colors"
+            >
+              세션 초기화
+            </button>
           )}
         </div>
 
