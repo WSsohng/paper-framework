@@ -59,7 +59,7 @@ function getActiveProvider(): AIProvider {
 export async function getAIStatus(): Promise<{ provider: AIProvider; model: string | null }> {
   const provider = getActiveProvider()
   const model =
-    provider === 'claude' ? 'claude-3-5-haiku-latest' :
+    provider === 'claude' ? 'claude-haiku-4-5-20251001' :
     provider === 'openai' ? 'gpt-4o-mini' :
     null
   return { provider, model }
@@ -109,7 +109,7 @@ async function callClaude(
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
   const message = await client.messages.create({
-    model:       'claude-3-5-haiku-latest',
+    model:       'claude-haiku-4-5-20251001',
     max_tokens:  2048,
     temperature,
     messages:    [{ role: 'user', content: prompt }],
@@ -124,7 +124,7 @@ async function callClaude(
       input_tokens:  message.usage.input_tokens,
       output_tokens: message.usage.output_tokens,
       provider: 'claude',
-      model:    'claude-3-5-haiku-latest',
+      model:    'claude-haiku-4-5-20251001',
     },
   }
 }
