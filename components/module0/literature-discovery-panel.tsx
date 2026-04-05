@@ -926,7 +926,9 @@ function SearchRoundCard({
               </div>
 
               <div className="divide-y divide-zinc-800/40 max-h-[480px] overflow-y-auto">
-                {visiblePapers.map((paper, visIdx) => {
+                {[...visiblePapers]
+                  .sort((a, b) => (a.is_review ? 1 : 0) - (b.is_review ? 1 : 0))
+                  .map((paper, visIdx) => {
                   // 원래 인덱스 (verifications 맵 키)
                   const origIdx     = round.papers.indexOf(paper)
                   const verification = round.verifications.get(origIdx) ?? null
@@ -968,8 +970,11 @@ function PaperRow({ paper, verification, alreadyInDb, savedNow, onSave }: PaperR
   const match  = verification?.match ?? null
   const cfg    = match ? MATCH_CONFIG[match] : null
 
+  // 리뷰 논문은 행 전체를 약하게 처리
+  const reviewCls = paper.is_review ? 'opacity-60' : ''
+
   return (
-    <div className={`flex items-start gap-3 px-4 py-3 bg-zinc-900/20 hover:bg-zinc-800/20 transition-colors ${cfg?.rowCls ?? ''}`}>
+    <div className={`flex items-start gap-3 px-4 py-3 bg-zinc-900/20 hover:bg-zinc-800/20 transition-colors ${cfg?.rowCls ?? ''} ${reviewCls}`}>
       <div className="flex-1 min-w-0">
         <div className="flex items-start gap-2">
           {/* 관련성 도트 */}
@@ -985,10 +990,7 @@ function PaperRow({ paper, verification, alreadyInDb, savedNow, onSave }: PaperR
                 {paper.title}
               </p>
               {paper.is_review && (
-                <span
-                  className="shrink-0 mt-0.5 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-amber-900/40 text-amber-400 border border-amber-800/50"
-                  title="리뷰 논문: 인용한 연구들이 구식일 수 있습니다. 원저 논문에서 직접 인사이트를 얻는 것을 권장합니다."
-                >
+                <span className="shrink-0 mt-0.5 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-amber-900/30 text-amber-500/80 border border-amber-800/40">
                   리뷰
                 </span>
               )}
@@ -1003,11 +1005,6 @@ function PaperRow({ paper, verification, alreadyInDb, savedNow, onSave }: PaperR
                 <span>· 인용 {paper.citation_count.toLocaleString()}</span>
               )}
             </div>
-            {paper.is_review && (
-              <p className="mt-0.5 text-[10px] text-amber-600/70">
-                ⚠ 리뷰 논문 — 인용 논문이 오래됐을 수 있음. 원저 논문 직접 탐색 권장.
-              </p>
-            )}
             {/* 관련성 검토 노트 */}
             {verification?.note && verification.note !== '자동 검토 불가' && (
               <p className={`mt-0.5 text-[10px] leading-snug italic ${
