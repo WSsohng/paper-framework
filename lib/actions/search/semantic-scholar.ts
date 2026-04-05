@@ -49,7 +49,10 @@ export async function searchPapers(
   const apiKey = process.env.SEMANTIC_SCHOLAR_API_KEY
   if (apiKey) headers['x-api-key'] = apiKey
 
-  const MAX_SS_RETRIES = 3
+  // API 키 없으면 5s·10s·15s 대기, 있으면 2s·4s·6s
+  const hasApiKey = !!process.env.SEMANTIC_SCHOLAR_API_KEY
+  const MAX_SS_RETRIES = 4
+  const retryDelays   = hasApiKey ? [2000, 4000, 6000] : [5000, 10000, 15000]
   let lastError: string | null = null
 
   for (let attempt = 0; attempt < MAX_SS_RETRIES; attempt++) {
@@ -63,8 +66,7 @@ export async function searchPapers(
       if (!res.ok) {
         if (res.status === 429) {
           if (attempt < MAX_SS_RETRIES - 1) {
-            // 2s, 5s 대기 후 재시도
-            await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 2000 + 1000))
+            await new Promise(resolve => setTimeout(resolve, retryDelays[attempt] ?? 15000))
             continue
           }
           return { success: false, error: 'Semantic Scholar 요청 한도 초과. 잠시 후 다시 시도해 주세요.' }

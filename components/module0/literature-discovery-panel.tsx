@@ -651,6 +651,15 @@ export function LiteratureDiscoveryPanel({
                 ),
               )
             }
+            onRetry={() => {
+              // 에러 상태 초기화 후 동일 질문으로 재검색
+              setRounds((prev) =>
+                prev.map((r) =>
+                  r.id === round.id ? { ...r, error: null, phase: 'extracting', papers: [], verifications: new Map(), keywords: null } : r,
+                ),
+              )
+              handleSearch(round.question, round.angle, round.user_insight)
+            }}
           />
         ))}
       </div>
@@ -758,6 +767,7 @@ interface RoundCardProps {
   onSaveAll:        () => void
   onToggleExpand:   () => void
   onToggleUnrelated: () => void
+  onRetry:          () => void
 }
 
 const MATCH_CONFIG: Record<PaperMatch, { label: string; dot: string; rowCls: string }> = {
@@ -767,7 +777,7 @@ const MATCH_CONFIG: Record<PaperMatch, { label: string; dot: string; rowCls: str
 }
 
 function SearchRoundCard({
-  round, roundNumber, existingDois, onSavePaper, onSaveAll, onToggleExpand, onToggleUnrelated,
+  round, roundNumber, existingDois, onSavePaper, onSaveAll, onToggleExpand, onToggleUnrelated, onRetry,
 }: RoundCardProps) {
   const verified    = round.verifications.size > 0
   const directCount = verified
@@ -848,7 +858,15 @@ function SearchRoundCard({
       {round.expanded && (
         <>
           {round.error ? (
-            <ErrorBox message={round.error} className="m-3" />
+            <div className="m-3 space-y-2">
+              <ErrorBox message={round.error} />
+              <button
+                onClick={onRetry}
+                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+              >
+                ↻ 다시 검색
+              </button>
+            </div>
           ) : round.papers.length === 0 && round.phase === 'done' ? (
             <p className="px-4 py-3 text-sm text-zinc-600">검색 결과가 없습니다.</p>
           ) : visiblePapers.length > 0 ? (
