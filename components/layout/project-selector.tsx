@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { setSelectedProject } from '@/lib/actions/project-context'
+import { setSelectedTrack } from '@/lib/actions/track-context'
 import { ProjectDialog } from '@/components/module0/project-dialog'
 import type { Project } from '@/lib/types'
 
@@ -31,6 +32,10 @@ export function ProjectSelector({ projects, selectedProject }: Props) {
     setOpen(false)
     startTransition(async () => {
       await setSelectedProject(id)
+      // 프로젝트가 바뀌면 트랙은 해당 프로젝트 소속이 아니므로 초기화
+      if (id !== selectedProject?.id) {
+        await setSelectedTrack(null)
+      }
       router.refresh()
     })
   }
