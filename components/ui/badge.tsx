@@ -218,9 +218,9 @@ export function ReviewCategoryBadge({ category }: { category: ReviewCategory }) 
 // ── 참고문헌 티어 ─────────────────────────────────────────
 
 const tierConfig: Record<PaperTier, { label: string; className: string; dot: string; desc: string }> = {
-  1: { label: 'T1',  className: 'bg-red-950 text-red-400 border border-red-800/50',       dot: 'bg-red-400',    desc: '경쟁 논문 (accept 위험)' },
-  2: { label: 'T2',  className: 'bg-amber-950 text-amber-400 border border-amber-800/50', dot: 'bg-amber-400',  desc: '핵심 근거 (추론 레퍼런스)' },
-  3: { label: 'T3',  className: 'bg-zinc-800 text-zinc-400 border border-zinc-700/50',    dot: 'bg-zinc-500',   desc: '거시적 흐름 (서론·배경)' },
+  1: { label: 'T1',  className: 'bg-red-950 text-red-400 border border-red-800/50',       dot: 'bg-red-400',    desc: '고임팩트 (상위 저널·높은 인용·저명 저자)' },
+  2: { label: 'T2',  className: 'bg-amber-950 text-amber-400 border border-amber-800/50', dot: 'bg-amber-400',  desc: '중임팩트 (주요 저널·검증된 연구)' },
+  3: { label: 'T3',  className: 'bg-zinc-800 text-zinc-400 border border-zinc-700/50',    dot: 'bg-zinc-500',   desc: '낮은 임팩트 (소규모·예비·오래된 연구)' },
 }
 
 export function PaperTierBadge({ tier }: { tier: PaperTier | null }) {

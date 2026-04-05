@@ -10,9 +10,9 @@ interface Props {
 }
 
 const TIERS: { value: PaperTier; label: string; desc: string; cls: string }[] = [
-  { value: 1, label: 'T1', desc: '경쟁 논문',    cls: 'border-red-700 text-red-400 bg-red-950/40'    },
-  { value: 2, label: 'T2', desc: '핵심 근거',    cls: 'border-amber-700 text-amber-400 bg-amber-950/40' },
-  { value: 3, label: 'T3', desc: '거시적 흐름',  cls: 'border-zinc-600 text-zinc-400 bg-zinc-800/40'  },
+  { value: 1, label: 'T1', desc: '고임팩트 — 상위 저널·높은 인용·저명 저자 (분야 대표 연구)',    cls: 'border-red-700 text-red-400 bg-red-950/40'    },
+  { value: 2, label: 'T2', desc: '중임팩트 — 주요 저널·검증된 연구·신뢰할 만한 결과',           cls: 'border-amber-700 text-amber-400 bg-amber-950/40' },
+  { value: 3, label: 'T3', desc: '낮은 임팩트 — 소규모·예비 연구·비주류 벤뉴·오래된 연구',       cls: 'border-zinc-600 text-zinc-400 bg-zinc-800/40'  },
 ]
 
 export function TierSelector({ paperId, currentTier }: Props) {

@@ -190,18 +190,19 @@ export default async function ReferencePapersPage({
                 {/* Tier 범례 + 개념 일괄 분석 */}
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-3">
-                    {([1, 2, 3] as const).map((t) => (
-                      <span key={t} className="flex items-center gap-1.5 text-xs text-zinc-600">
-                        <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-bold ${
-                          t === 1 ? 'bg-red-950 text-red-400 border border-red-800/50' :
-                          t === 2 ? 'bg-amber-950 text-amber-400 border border-amber-800/50' :
-                                   'bg-zinc-800 text-zinc-400 border border-zinc-700/50'
-                        }`}>T{t}</span>
-                        {PAPER_TIER_DESC[t].desc}
-                      </span>
-                    ))}
-                    <span className="text-xs text-zinc-700">— 각 논문 행에서 티어 클릭으로 설정</span>
-                  </div>
+                  <span className="text-xs font-medium text-zinc-500">T (품질·임팩트)</span>
+                  {([1, 2, 3] as const).map((t) => (
+                    <span key={t} className="flex items-center gap-1.5 text-xs text-zinc-600">
+                      <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-bold ${
+                        t === 1 ? 'bg-red-950 text-red-400 border border-red-800/50' :
+                        t === 2 ? 'bg-amber-950 text-amber-400 border border-amber-800/50' :
+                                 'bg-zinc-800 text-zinc-400 border border-zinc-700/50'
+                      }`}>T{t}</span>
+                      {PAPER_TIER_DESC[t].desc}
+                    </span>
+                  ))}
+                  <span className="text-xs text-zinc-700">— 카드에서 직접 설정</span>
+                </div>
                   {project?.research_intent && (
                     <BatchAnalyzeButton
                       projectId={selectedProjectId}
@@ -217,7 +218,7 @@ export default async function ReferencePapersPage({
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex flex-wrap items-center gap-3">
                         <span className="text-xs font-medium text-zinc-400">
-                          연관도 (트랙: {selectedTrack.name})
+                          R (주제 연관성 · 트랙: {selectedTrack.name})
                         </span>
                         {([1, 2, 3] as const).map((r) => {
                           const counts = [
