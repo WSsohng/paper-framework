@@ -116,6 +116,7 @@ Abstract: ${paper.abstract ?? '(없음)'}
 export async function batchExtractConcepts(
   projectId: string,
   researchIntent: string,
+  forceAll = false,  // true = intent 변경 후 전체 재분석
 ): Promise<ActionResult<{ processed: number; skipped: number }>> {
   const supabase = await createClient()
 
@@ -126,7 +127,9 @@ export async function batchExtractConcepts(
 
   if (error) return { success: false, error: error.message }
 
-  const unanalyzed = (papers ?? []).filter((p) => !p.concepts || p.concepts.length === 0)
+  const unanalyzed = forceAll
+    ? (papers ?? [])
+    : (papers ?? []).filter((p) => !p.concepts || p.concepts.length === 0)
 
   let processed = 0
   let failed    = 0

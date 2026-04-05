@@ -6,6 +6,14 @@
 
 export type ProjectStatus = 'active' | 'paused' | 'completed' | 'archived'
 
+/** Research Intent 변경 이력 한 건 */
+export interface IntentHistoryEntry {
+  changed_at:  string         // ISO datetime
+  old_intent:  string | null  // 변경 전 값
+  new_intent:  string | null  // 변경 후 값
+  note?:       string         // 선택적 변경 이유
+}
+
 export interface Project {
   id: string
   name: string
@@ -13,6 +21,14 @@ export interface Project {
   research_intent: string | null
   status: ProjectStatus
   tags: string[]
+  /**
+   * 가장 최근 research_intent 변경 시각.
+   * NULL = 초기 설정 이후 변경 없음.
+   * 이 값보다 오래된 논문 분석값은 stale로 간주.
+   */
+  intent_updated_at: string | null
+  /** Research Intent 변경 이력 (최신→과거 순) */
+  intent_history: IntentHistoryEntry[]
   created_at: string
   updated_at: string
   // aggregated

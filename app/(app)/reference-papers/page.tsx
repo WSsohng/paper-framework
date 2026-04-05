@@ -18,6 +18,7 @@ import { RelevanceBadge } from '@/components/module0/relevance-badge'
 import { RelevanceTagButton } from '@/components/module0/relevance-tag-button'
 import { BatchRelevanceButton } from '@/components/module0/batch-relevance-button'
 import { TrackMonitorButton } from '@/components/module0/track-monitor-button'
+import { IntentStaleBanner } from '@/components/module0/intent-stale-banner'
 import type { TrackRelevance } from '@/lib/types'
 
 export const metadata = { title: 'Reference Papers — PaperFactory' }
@@ -71,6 +72,15 @@ export default async function ReferencePapersPage({
   const tier2Papers  = papers.filter((p) => p.tier === 2)
   const tier3Papers  = papers.filter((p) => p.tier === 3)
   const unanalyzedCount       = papers.filter((p) => !p.concepts || p.concepts.length === 0).length
+
+  // intent 변경 이후 재분석이 안 된 논문 수
+  const staleCount = project?.intent_updated_at
+    ? papers.filter(p =>
+        p.status !== 'archived' &&
+        (!p.updated_at || p.updated_at < project.intent_updated_at!)
+      ).length
+    : 0
+
   const untaggedRelevanceCount = selectedTrackId
     ? activePapers.filter((p) => !relevanceMap.has(p.id)).length
     : 0
@@ -184,6 +194,19 @@ export default async function ReferencePapersPage({
           />
         ) : (
           <>
+            {/* Intent 변경 후 재분석 배너 */}
+            {staleCount > 0 && project?.intent_updated_at && project.research_intent && (
+              <div className="mb-4">
+                <IntentStaleBanner
+                  projectId={selectedProjectId}
+                  researchIntent={project.research_intent}
+                  staleCount={staleCount}
+                  totalCount={activePapers.length}
+                  intentUpdatedAt={project.intent_updated_at}
+                />
+              </div>
+            )}
+
             {/* 티어 범례 + 일괄 분석 / R태깅 버튼 */}
             {papers.length > 0 && (
               <div className="mb-4 space-y-3">

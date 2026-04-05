@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { createProject, updateProject } from '@/lib/actions/projects'
+import { IntentHistoryLog } from '@/components/module0/intent-history-log'
 import type { Project, ProjectInput, ProjectStatus } from '@/lib/types'
 
 interface Props {
@@ -15,6 +16,11 @@ export function ProjectForm({ project, onSuccess, onCancel }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState<string[]>(project?.tags ?? [])
+  // intent 변경 감지: 현재 입력값이 원본과 다른지 실시간 추적
+  const [currentIntent, setCurrentIntent] = useState(project?.research_intent ?? '')
+  const intentChanged = project != null &&
+    currentIntent.trim() !== (project.research_intent ?? '').trim() &&
+    currentIntent.trim() !== ''
 
   function addTag(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && tagInput.trim()) {
@@ -31,12 +37,13 @@ export function ProjectForm({ project, onSuccess, onCancel }: Props) {
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
-    const input: ProjectInput = {
+    const input: ProjectInput & { intent_note?: string } = {
       name:            fd.get('name') as string,
       description:     (fd.get('description') as string) || undefined,
       research_intent: (fd.get('research_intent') as string) || undefined,
       status:          (fd.get('status') as ProjectStatus) || 'active',
       tags,
+      intent_note:     (fd.get('intent_note') as string) || undefined,
     }
 
     startTransition(async () => {
@@ -79,7 +86,8 @@ export function ProjectForm({ project, onSuccess, onCancel }: Props) {
         </div>
         <textarea
           name="research_intent"
-          defaultValue={project?.research_intent ?? ''}
+          value={currentIntent}
+          onChange={(e) => setCurrentIntent(e.target.value)}
           rows={3}
           placeholder="예: NIR 분광기와 딥러닝을 결합해 소량 샘플로도 고정밀 화학 성분 분류가 가능한지 검증한다"
           className={`${fieldCls} resize-none`}
@@ -87,6 +95,24 @@ export function ProjectForm({ project, onSuccess, onCancel }: Props) {
         <p className="mt-1 text-[11px] text-zinc-600 leading-relaxed">
           M0 문헌 탐색 · M1 저널 추천 · M2 인사이트 추출 등 모든 AI 기능의 기반입니다. 구체적일수록 정확도가 높아집니다.
         </p>
+
+        {/* 변경 이력 (편집 모드일 때만) */}
+        {project && <IntentHistoryLog history={project.intent_history ?? []} />}
+
+        {/* 변경 이유 입력 (intent가 달라졌을 때만 표시) */}
+        {intentChanged && (
+          <div className="mt-2 rounded-lg border border-amber-800/50 bg-amber-950/30 px-3 py-2.5 space-y-2">
+            <p className="text-[11px] text-amber-400 font-medium flex items-center gap-1.5">
+              <span>⚠</span>
+              Research Intent가 변경됩니다. 저장 후 AI 분석값(논문 관련도·우선순위) 재계산을 권장합니다.
+            </p>
+            <input
+              name="intent_note"
+              placeholder="변경 이유 (선택) — 예: 실험 결과 방향 수정, 새 논문 발견 후 초점 이동"
+              className="w-full rounded border border-zinc-700 bg-zinc-900/80 px-2.5 py-1.5 text-xs text-zinc-300 placeholder:text-zinc-600 focus:border-amber-600 focus:outline-none"
+            />
+          </div>
+        )}
       </div>
 
       <div>
