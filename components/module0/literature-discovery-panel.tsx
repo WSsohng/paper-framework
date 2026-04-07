@@ -7,7 +7,7 @@ import {
   type ResearchQuestion,
   type SearchHistoryItem,
 } from '@/lib/actions/ai/research-questions'
-import { searchPapers, type FoundPaper } from '@/lib/actions/search/semantic-scholar'
+import { searchPapers, type FoundPaper } from '@/lib/actions/search/search-papers'
 import { extractSearchKeywords, type KeywordExtractResult } from '@/lib/actions/ai/extract-keywords'
 import { verifyPaperRelevance, type PaperVerification, type PaperMatch } from '@/lib/actions/ai/verify-papers'
 import { createReferencePaper } from '@/lib/actions/reference-papers'
@@ -630,7 +630,7 @@ export function LiteratureDiscoveryPanel({
               {(
                 [
                   { phase: 'extracting', label: '키워드 추출', desc: 'Claude가 최적 검색어 도출' },
-                  { phase: 'searching',  label: '논문 검색',   desc: 'Semantic Scholar 쿼리' },
+                  { phase: 'searching',  label: '논문 검색',   desc: '논문 DB 쿼리' },
                   { phase: 'verifying',  label: '관련성 검토', desc: 'Claude가 결과 필터링' },
                 ] as const
               ).map((step, i) => {
