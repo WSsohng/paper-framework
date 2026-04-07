@@ -336,7 +336,7 @@ export function LiteratureDiscoveryPanel({
     let verifications: PaperVerification[]
 
     if (isMultiSearch && plan) {
-      // gap_analysis / comparison: Claude가 그룹별 컨텍스트로 합성
+      // comparison: Claude가 그룹별 컨텍스트로 합성
       verifications = await synthesizeSearchResults(
         question,
         intent,
@@ -744,7 +744,7 @@ export function LiteratureDiscoveryPanel({
               phase: 'extracting' as const,
               label: '검색 계획',
               desc:  plan
-                ? `${plan.query_type === 'gap_analysis' ? '차집합 분석' : plan.query_type === 'comparison' ? '비교 검색' : plan.query_type === 'trend_analysis' ? '트렌드 탐색' : '직접 검색'} · ${plan.searches.length}개 쿼리`
+                ? `${plan.query_type === 'comparison' ? '비교 검색' : plan.query_type === 'trend_analysis' ? '트렌드 탐색' : '직접 검색'} · ${plan.searches.length}개 쿼리`
                 : 'Claude가 전략 수립 중',
             },
             {
@@ -758,14 +758,10 @@ export function LiteratureDiscoveryPanel({
             },
             {
               phase: 'verifying' as const,
-              label: plan?.query_type === 'gap_analysis' || plan?.query_type === 'comparison'
-                ? '갭 분석'
-                : '관련성 검토',
-              desc: plan?.query_type === 'gap_analysis'
-                ? 'Claude가 미적용 기법 식별'
-                : plan?.query_type === 'comparison'
-                  ? 'Claude가 비교 분석'
-                  : 'Claude가 결과 필터링',
+              label: plan?.query_type === 'comparison' ? '비교 분석' : '관련성 검토',
+              desc:  plan?.query_type === 'comparison'
+                ? 'Claude가 그룹별 관련성 분석'
+                : 'Claude가 결과 필터링',
             },
           ] as const
           const phases: SearchPhase[] = ['extracting', 'searching', 'verifying']
@@ -977,9 +973,7 @@ function SearchRoundCard({
               )}
               {directCount !== null && directCount > 0 && (
                 <span className="text-[10px] text-emerald-400/80">
-                  {round.search_plan?.query_type === 'gap_analysis'
-                    ? `갭 후보 ${directCount}편`
-                    : `직접 관련 ${directCount}편`}
+                  직접 관련 {directCount}편
                 </span>
               )}
             </div>
@@ -992,17 +986,11 @@ function SearchRoundCard({
                 {/* 쿼리 유형 뱃지 */}
                 {round.search_plan.query_type !== 'direct_search' && (
                   <span className={`rounded px-1.5 py-0.5 text-[9px] font-semibold ${
-                    round.search_plan.query_type === 'gap_analysis'
-                      ? 'bg-violet-900/40 text-violet-400'
-                      : round.search_plan.query_type === 'comparison'
-                        ? 'bg-blue-900/40 text-blue-400'
-                        : 'bg-teal-900/40 text-teal-400'
+                    round.search_plan.query_type === 'comparison'
+                      ? 'bg-blue-900/40 text-blue-400'
+                      : 'bg-teal-900/40 text-teal-400'
                   }`}>
-                    {round.search_plan.query_type === 'gap_analysis'
-                      ? '차집합'
-                      : round.search_plan.query_type === 'comparison'
-                        ? '비교'
-                        : '트렌드'}
+                    {round.search_plan.query_type === 'comparison' ? '비교' : '트렌드'}
                   </span>
                 )}
                 {/* 서브쿼리 목적 태그 */}
@@ -1032,9 +1020,7 @@ function SearchRoundCard({
               <Spinner />
               {round.phase === 'searching'
                 ? round.searchProgress ?? '검색 중'
-                : round.search_plan?.query_type === 'gap_analysis'
-                  ? '갭 분석 중'
-                  : '검토 중'}
+                : '검토 중'}
             </span>
           )}
           {round.papers.length > 0 && (

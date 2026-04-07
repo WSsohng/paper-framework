@@ -15,10 +15,9 @@ export interface SearchQuery {
 }
 
 export type SearchQueryType =
-  | 'direct_search'   // 단순 교집합 → 1개 쿼리
-  | 'gap_analysis'    // 차집합: "A 중 B 미적용" → 2개 쿼리
-  | 'trend_analysis'  // 최신 동향 → 1개 쿼리 + 최신순 강화
-  | 'comparison'      // A vs B 비교 → 2개 쿼리
+  | 'direct_search'   // 특정 주제·방법론 직접 탐색 → 1개 쿼리
+  | 'trend_analysis'  // 최신 동향 파악 → 1개 쿼리 (yearFrom 최근 1~2년)
+  | 'comparison'      // 두 기술·방법론 병렬 탐색 → 2개 쿼리 (인간이 직접 비교)
 
 export interface SearchPlan {
   query_type:             SearchQueryType
@@ -76,21 +75,22 @@ ${researchQuestion}
 ===== query_type 판단 기준 =====
 
 direct_search — 특정 주제·방법론 논문을 직접 탐색할 때. searches 1개.
-  예: "Transformer를 NIR 분광분석에 적용한 최신 연구 찾기"
+  예: "Transformer를 NIR 분광분석에 적용한 최신 연구"
+  예: "sampling methods AI spectroscopy recent"
 
-gap_analysis — "A 기술 중 B 분야에 아직 적용 안 된 것" 또는 "B 분야가 놓친 A 기법" 파악.
-  searches 2개 필수:
-    s1: A 기술 단독 탐색 (B 관련 키워드 절대 포함 금지)
-    s2: A+B 교집합 탐색 (현재 적용 현황 파악용)
-  예: "AI 최신 기법 중 분광분석에 미적용된 기술" → s1: "foundation model deep learning 2023", s2: "machine learning spectroscopy"
+trend_analysis — 특정 분야의 최신 동향 파악. searches 1개, year_from을 최근 1~2년으로.
+  예: "2024년 이후 분광분석 AI 방법론 동향"
 
-trend_analysis — 특정 분야 최신 동향 파악. searches 1개, year_from을 최근 1~2년으로.
-  예: "2024년 이후 분광분석 최신 방법론 동향"
+comparison — 서로 다른 두 분야·방법론을 병렬 탐색, 연구자가 직접 비교·판단.
+  searches 2개, 각각 독립적인 direct 탐색:
+    s1: 첫 번째 분야·방법론
+    s2: 두 번째 분야·방법론
+  예: "최근 AI 샘플링 기법" + "분석화학 기계학습 응용" → 각각 독립 탐색 후 연구자가 융합 포인트 판단
+  예: "CNN spectroscopy" + "Transformer spectroscopy"
 
-comparison — 두 기술·방법론 비교·대조. searches 2개.
-  s1: 첫 번째 기술/방법론
-  s2: 두 번째 기술/방법론
-  예: "CNN vs Transformer in spectroscopy"
+⚠ gap_analysis는 지원하지 않습니다.
+  "A 분야 중 B에 미적용된 것"류 질문은 comparison으로 전환하세요.
+  융합 가능성 판단은 검색 결과를 보고 연구자가 직접 결정합니다.
 
 ===== search query 작성 규칙 =====
 - 반드시 영어, 명사형 키워드 조합 (자연어 문장 X)
@@ -104,7 +104,6 @@ comparison — 두 기술·방법론 비교·대조. searches 2개.
 - 동의어, 상위/하위 개념, 다른 분야 명칭 활용
 - 예) query: "transformer spectroscopy" →
        variations: ["attention mechanism chemical analysis", "self-attention NIR prediction"]
-- gap_analysis s1의 variations도 target domain(B) 키워드 포함 금지
 `.trim()
 
   try {
@@ -129,8 +128,9 @@ comparison — 두 기술·방법론 비교·대조. searches 2개.
 
     if (searches.length === 0) throw new Error('no searches returned')
 
-    const queryType = (['direct_search','gap_analysis','trend_analysis','comparison'] as const)
-      .includes(raw.query_type as SearchQueryType)
+    // gap_analysis는 지원 종료 → direct_search로 대체
+    const VALID_TYPES = ['direct_search', 'trend_analysis', 'comparison'] as const
+    const queryType = VALID_TYPES.includes(raw.query_type as typeof VALID_TYPES[number])
       ? (raw.query_type as SearchQueryType)
       : 'direct_search'
 

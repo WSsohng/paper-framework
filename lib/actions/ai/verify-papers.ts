@@ -39,7 +39,7 @@ export async function verifyPaperRelevance(
 ): Promise<PaperVerification[]> {
   if (papers.length === 0) return []
 
-  const batch = papers.slice(0, 30)
+  const batch = papers.slice(0, 60)
 
   const paperListStr = batch
     .map(

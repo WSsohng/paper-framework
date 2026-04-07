@@ -68,11 +68,14 @@ export async function searchPapersOpenAlex(
       papers = papers.filter(p => p.year == null || p.year >= yearFrom)
     }
 
-    // 최신순 정렬
+    // OpenAlex relevance 순서를 기본 유지하되,
+    // abstract 있는 논문을 앞으로, 없는 논문을 뒤로 이동
+    // (Claude 판단 정확도를 높이기 위해)
     papers.sort((a, b) => {
-      const yearDiff = (b.year ?? 0) - (a.year ?? 0)
-      if (yearDiff !== 0) return yearDiff
-      return b.citation_count - a.citation_count
+      const aHasAbstract = a.abstract ? 1 : 0
+      const bHasAbstract = b.abstract ? 1 : 0
+      return bHasAbstract - aHasAbstract
+      // 동일 abstract 유무일 때는 OpenAlex 원래 순서(relevance) 유지
     })
 
     papers = papers.slice(0, limit)

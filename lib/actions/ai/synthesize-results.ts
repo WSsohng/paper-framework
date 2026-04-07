@@ -15,13 +15,11 @@ export interface SearchResultGroup {
 // ── 액션 ──────────────────────────────────────────────────
 
 /**
- * 다중 검색 전략(gap_analysis, comparison 등)으로 수집된 논문들을
+ * 다중 검색 전략(comparison 등)으로 수집된 논문들을
  * 원본 연구 질문 기준으로 통합 평가한다.
  *
- * gap_analysis: s1 논문 중 s2에 없는 기법 → direct, s2는 맥락 참조 → partial
- * comparison:   각 그룹 논문을 원래 질문 기준으로 평가
- *
- * 단일 검색(direct_search)은 이 함수를 거치지 않고 verifyPaperRelevance 사용.
+ * comparison: s1·s2 각 그룹 논문을 원래 질문 기준으로 독립 평가
+ * 단일 검색(direct_search / trend_analysis)은 verifyPaperRelevance 사용.
  */
 export async function synthesizeSearchResults(
   researchQuestion:     string,
@@ -33,7 +31,7 @@ export async function synthesizeSearchResults(
 ): Promise<PaperVerification[]> {
   if (flatPapers.length === 0) return []
 
-  const batch = flatPapers.slice(0, 30)
+  const batch = flatPapers.slice(0, 60)
 
   // 검색별 그룹 맵: semanticId → search_id
   const paperSearchMap = new Map<string, string>()
@@ -95,18 +93,12 @@ ${paperListStr}
 ]
 
 판정 기준:
-- direct   : 연구 질문의 핵심 목적을 직접 충족하는 논문.
-  · gap_analysis: s1 출처이고, s2에서 다루지 않는 신기법을 제시하는 논문 → 갭 후보
-  · comparison: 비교 대상 기술을 실질적으로 다루는 논문
-- partial  : 관련은 있으나 핵심이 아닌 논문.
-  · gap_analysis: s2 출처(현재 적용 현황) 또는 간접 관련 s1 논문
-  · 배경·맥락 참고용
-- unrelated: 질문 의도와 실질적으로 다른 논문 (키워드만 겹침)
+- direct   : 연구 질문의 핵심 주제·방법론과 명확히 관련된 논문. 각 검색 그룹의 목적에 비춰 핵심적으로 활용 가능한 수준. (관련성이 있다고 판단되면 direct 선호)
+- partial  : 간접적으로 관련 있거나 배경·맥락 참고용인 논문.
+- unrelated: 질문 의도와 실질적으로 다른 논문 (명백한 false positive만 해당).
 
-⚠ gap_analysis 특수 규칙:
-- s1 출처 논문 중 새로운 AI 기법 → direct, note에 "○○ 기법 미적용 gap" 명시
-- s2 출처 논문 → partial, note에 "기존 적용 사례 (맥락)" 명시
-- s1 출처이지만 이미 s2와 동일 기술 → partial 또는 unrelated
+⚠ comparison 검색의 경우: s1·s2 각 그룹의 목적(purpose)에 비춰 해당 그룹에서 핵심적이면 direct로 판정.
+연구자가 두 그룹 결과를 함께 보고 융합 가능성을 직접 판단하므로, 각 그룹 내 관련성만 평가하세요.
 
 JSON 배열만 반환, 마크다운 없이.
 `.trim()
