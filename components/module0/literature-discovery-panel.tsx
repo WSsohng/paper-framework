@@ -34,7 +34,7 @@ const POOL_THRESHOLD = 15   // papers needed to unlock topic recommendations
 /** 검색 단계 표시용 */
 type SearchPhase =
   | 'extracting'   // 키워드 추출 중
-  | 'searching'    // Semantic Scholar 검색 중
+  | 'searching'    // 논문 DB 검색 중
   | 'verifying'    // 관련성 검토 중
   | 'done'
 
@@ -221,7 +221,7 @@ export function LiteratureDiscoveryPanel({
 
     if (!searchResult.success) {
       const msg = searchResult.error === 'RATE_LIMIT'
-        ? 'Semantic Scholar 요청 한도 초과. ↻ 다시 검색 버튼으로 재시도하거나 잠시 후 다시 시도해 주세요.'
+        ? '논문 DB 요청 한도 초과. ↻ 다시 검색 버튼으로 재시도하거나 잠시 후 다시 시도해 주세요.'
         : searchResult.error
       setRounds((prev) => prev.map((r) =>
         r.id === roundId ? { ...r, error: msg, phase: 'done' } : r,
