@@ -33,6 +33,6 @@ export async function searchPapers(
   return searchPapersOpenAlex(keyword, limitOrOpts)
 }
 
-export function getSearchProviderName(): string {
+export async function getSearchProviderName(): Promise<string> {
   return getProvider() === 'semantic_scholar' ? 'Semantic Scholar' : 'OpenAlex'
 }
