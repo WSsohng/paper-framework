@@ -1,4 +1,5 @@
 import { Sidebar } from '@/components/layout/sidebar'
+import { ReloadRedirect } from '@/components/layout/reload-redirect'
 import { getProjects } from '@/lib/actions/projects'
 import { getTracks } from '@/lib/actions/tracks'
 import { getSelectedProjectId } from '@/lib/selected-project'
@@ -19,6 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-full">
+      <ReloadRedirect />
       <Sidebar
         projects={projects}
         selectedProject={selectedProject}
