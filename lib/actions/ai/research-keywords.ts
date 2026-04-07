@@ -1,6 +1,6 @@
 'use server'
 
-import OpenAI from 'openai'
+import { generateJson } from '@/lib/ai/generate'
 import { AI_PROTOCOL_PREAMBLE } from '@/lib/framework-philosophy'
 
 export interface SearchDirection {
@@ -17,13 +17,6 @@ export async function generateSearchKeywords(
   projectName: string,
   researchIntent: string,
 ): Promise<KeywordResult> {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey || apiKey === 'your-openai-api-key-here') {
-    return { success: false, error: 'OPENAI_API_KEY가 설정되지 않았습니다.' }
-  }
-
-  const client = new OpenAI({ apiKey })
-
   const prompt = `${AI_PROTOCOL_PREAMBLE}
 
 ---
@@ -54,32 +47,13 @@ Return ONLY a valid JSON array of exactly 8 objects:
 No markdown, no explanation — pure JSON only.`
 
   try {
-    const response = await client.chat.completions.create({
-      model:           'gpt-4o-mini',
-      messages:        [{ role: 'user', content: prompt }],
-      temperature:     0.3,
-      response_format: { type: 'json_object' },
+    const list = await generateJson<SearchDirection[]>(prompt, 0.3, {
+      skipFrameworkProtocol: true,
+      meta: { feature: 'search_keywords' },
     })
-
-    const raw = response.choices[0]?.message?.content ?? ''
-
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(raw)
-    } catch {
-      return { success: false, error: 'AI 응답 파싱 실패. 다시 시도해 주세요.' }
-    }
-
-    const list: SearchDirection[] = Array.isArray(parsed)
-      ? parsed
-      : (parsed as Record<string, unknown>).keywords as SearchDirection[]
-        ?? (parsed as Record<string, unknown>).data as SearchDirection[]
-        ?? []
-
-    if (!list.length) {
+    if (!Array.isArray(list) || !list.length) {
       return { success: false, error: '키워드 생성 실패. 다시 시도해 주세요.' }
     }
-
     return { success: true, data: list.slice(0, 8) }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)

@@ -6,12 +6,14 @@ import { FEATURE_LABELS } from '@/lib/ai-feature-labels'
 
 // ── 비용 단가 (per token) ─────────────────────────────────
 const COST_PER_TOKEN: Record<string, { input: number; output: number }> = {
-  'claude-3-5-haiku-latest': { input: 0.0000008,  output: 0.000004  },  // $0.80/$4.00 per 1M
-  'gpt-4o-mini':             { input: 0.00000015, output: 0.0000006 },  // $0.15/$0.60 per 1M
+  'claude-haiku-4-5-20251001': { input: 0.0000008, output: 0.000004 },  // $0.80/$4.00 per 1M
+  'claude-3-5-haiku-latest':   { input: 0.0000008, output: 0.000004 },  // 레거시 로그 호환
 }
 
+const DEFAULT_RATE = { input: 0.0000008, output: 0.000004 }
+
 function calcCost(model: string, input: number, output: number): number {
-  const rate = COST_PER_TOKEN[model] ?? COST_PER_TOKEN['claude-3-5-haiku-latest']
+  const rate = COST_PER_TOKEN[model] ?? DEFAULT_RATE
   return input * rate.input + output * rate.output
 }
 

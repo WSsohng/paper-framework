@@ -43,7 +43,7 @@ const modules: ModuleInsight[] = [
       '저널 후보와 Fit 분석은 AI가 가속하고, 최종 목표 저널은 연구자가 고른다. 저널이 정해지면 방향·깊이·강조점이 정렬된다.',
     howto:
       'Research Intent → AI가 10개 저널 추천 (Fit Score 순) → 각 저널에 대한 전략적 인사이트 제공 (IF, 범위, 이 연구와의 적합도) → 사용자가 추가/삭제/수정 가능',
-    ai: ['Claude / OpenAI (추천 & 인사이트 생성)'],
+    ai: ['Anthropic Claude (추천 & 인사이트 생성)'],
     blank: undefined,
   },
   {
@@ -500,7 +500,7 @@ export default async function InsightsPage({
                 <p className="text-sm font-semibold text-zinc-100">
                   AI 활성 · {usageData.aiStatus.model}
                   <span className="ml-2 text-xs font-normal text-zinc-500">
-                    ({usageData.aiStatus.provider === 'claude' ? 'Anthropic Claude' : 'OpenAI'})
+                    (Anthropic Claude)
                   </span>
                 </p>
               )}
