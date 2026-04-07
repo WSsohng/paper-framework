@@ -88,9 +88,10 @@ export default async function ReferencePapersPage({
   // For discovery panel
   const existingDois   = new Set(papers.map((p) => p.doi).filter(Boolean) as string[])
   const existingPapers = papers.map((p) => ({
-    title:   p.title,
-    journal: p.journal,
-    year:    p.year,
+    title:    p.title,
+    journal:  p.journal,
+    year:     p.year,
+    abstract: p.abstract ?? null,
   }))
 
   return (

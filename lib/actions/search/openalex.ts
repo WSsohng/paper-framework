@@ -19,24 +19,24 @@ export async function searchPapersOpenAlex(
   const opts: SearchOptions =
     typeof limitOrOpts === 'number' ? { limit: limitOrOpts } : limitOrOpts
 
+  // 최대 40편: 변형 쿼리 병렬 검색으로 풀이 충분히 확보됨
   const limit    = Math.min(opts.limit ?? 15, 50)
   const yearFrom = opts.yearFrom ?? null
 
   const filters: string[] = []
   if (yearFrom) {
-    // OpenAlex filter 문법: from_publication_date:YYYY-01-01
     filters.push(`from_publication_date:${yearFrom}-01-01`)
   }
 
   const params = new URLSearchParams({
     search:     keyword,
-    'per-page': String(Math.min(limit * 2, 50)),
+    // per-page: limit * 3 (최대 80) — 더 넓은 후보 풀 확보 후 클라이언트 재정렬
+    'per-page': String(Math.min(limit * 3, 80)),
     select:     'id,display_name,authorships,publication_year,abstract_inverted_index,primary_location,cited_by_count,open_access,type,doi',
   })
 
-  // sort: search 없이 relevance_score 사용 불가한 경우가 있어 citation_count 기준 정렬 사용
-  // 클라이언트 측에서 최신순으로 재정렬함
-  params.set('sort', 'cited_by_count:desc')
+  // sort 미설정: search 파라미터 존재 시 OpenAlex가 자동으로 relevance_score:desc 적용
+  // 이전에 cited_by_count:desc를 사용했으나 고인용 논문 편향으로 관련성 낮은 결과 반환됨
 
   if (filters.length) {
     params.set('filter', filters.join(','))

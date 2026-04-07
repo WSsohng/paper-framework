@@ -7,10 +7,11 @@ import type { ActionResult } from '@/lib/types'
 
 /** 단일 검색 쿼리 (API에 직접 전달될 영문 쿼리) */
 export interface SearchQuery {
-  id:        string        // "s1", "s2"
-  purpose:   string        // 이 검색의 목적 (한국어)
-  query:     string        // API 검색어 (영문 키워드)
-  yearFrom?: number        // 최소 발행 연도
+  id:               string    // "s1", "s2"
+  purpose:          string    // 이 검색의 목적 (한국어)
+  query:            string    // API 검색어 (영문 키워드) — 주 쿼리
+  query_variations: string[]  // 동일 의도를 다른 학술 표현으로 표현한 변형 쿼리 2개
+  yearFrom?:        number    // 최소 발행 연도
 }
 
 export type SearchQueryType =
@@ -60,6 +61,10 @@ ${researchQuestion}
       "id": "s1",
       "purpose": "이 검색의 목적 (한국어, 한 문장)",
       "query": "API에 보낼 영문 검색어 (2~5개 핵심 명사형 용어)",
+      "query_variations": [
+        "주 쿼리와 동일 의도의 학술 동의어 표현 1",
+        "주 쿼리와 동일 의도의 학술 동의어 표현 2"
+      ],
       "year_from": ${currentYear - 3}
     }
   ],
@@ -93,12 +98,19 @@ comparison — 두 기술·방법론 비교·대조. searches 2개.
 - 나쁨: "How does vision transformer work for spectral analysis?"
 - gap_analysis s1: target domain(B)의 키워드 절대 포함 금지
 - year_from: ${currentYear - 3}~${currentYear - 6} 범위, 분야 특성에 맞게
+
+===== query_variations 작성 규칙 =====
+- 반드시 2개, query와 의미적으로 동등하지만 학술 표현이 다른 쿼리
+- 동의어, 상위/하위 개념, 다른 분야 명칭 활용
+- 예) query: "transformer spectroscopy" →
+       variations: ["attention mechanism chemical analysis", "self-attention NIR prediction"]
+- gap_analysis s1의 variations도 target domain(B) 키워드 포함 금지
 `.trim()
 
   try {
     const raw = await generateJson<{
       query_type:            string
-      searches:              { id: string; purpose: string; query: string; year_from?: number }[]
+      searches:              { id: string; purpose: string; query: string; query_variations?: string[]; year_from?: number }[]
       synthesis_instruction: string
       keywords:              string[]
       rationale:             string
@@ -108,10 +120,11 @@ comparison — 두 기술·방법론 비교·대조. searches 2개.
     })
 
     const searches: SearchQuery[] = (raw.searches ?? []).map((s) => ({
-      id:       s.id       ?? 's1',
-      purpose:  s.purpose  ?? '',
-      query:    s.query    ?? researchQuestion.slice(0, 100),
-      yearFrom: s.year_from && s.year_from > currentYear - 10 ? s.year_from : undefined,
+      id:               s.id               ?? 's1',
+      purpose:          s.purpose          ?? '',
+      query:            s.query            ?? researchQuestion.slice(0, 100),
+      query_variations: Array.isArray(s.query_variations) ? s.query_variations.filter(Boolean).slice(0, 2) : [],
+      yearFrom:         s.year_from && s.year_from > currentYear - 10 ? s.year_from : undefined,
     }))
 
     if (searches.length === 0) throw new Error('no searches returned')
@@ -138,9 +151,10 @@ comparison — 두 기술·방법론 비교·대조. searches 2개.
       data: {
         query_type:            'direct_search',
         searches: [{
-          id:      's1',
-          purpose: '직접 탐색',
-          query:   researchQuestion.slice(0, 100),
+          id:               's1',
+          purpose:          '직접 탐색',
+          query:            researchQuestion.slice(0, 100),
+          query_variations: [],
         }],
         synthesis_instruction: '검색 결과를 원래 질문 기준으로 관련성 평가',
         keywords:              [],

@@ -23,12 +23,15 @@ import {
   saveDiscoveryRound,
   updateRoundSavedIds,
   updateRoundInsight,
+  deleteDiscoveryRound,
   clearDiscoveryRounds,
   type DiscoveryRoundRow,
 } from '@/lib/actions/discovery-rounds'
 
 // ── Constants ─────────────────────────────────────────────
-const POOL_THRESHOLD = 15   // papers needed to unlock topic recommendations
+// 주제 추천 활성화 조건: 질문 1회 이상 + 논문 3편 이상 (이전: 논문 15편)
+const MIN_ROUNDS_FOR_TOPICS = 1
+const MIN_PAPERS_FOR_TOPICS = 3
 
 // ── Types ─────────────────────────────────────────────────
 
@@ -138,6 +141,8 @@ export function LiteratureDiscoveryPanel({
   // Pool (accumulated saved papers this session)
   const [sessionSaved, setSessionSaved] = useState<PoolPaper[]>([])
   const savedIdsRef                     = useRef<Set<string>>(new Set())
+  // roundsRef: stale closure 방지 — rounds 최신값 항상 참조
+  const roundsRef                       = useRef<SearchRound[]>([])
 
   // Topics (right panel)
   const [topics, setTopics]             = useState<TopicRecommendation[]>([])
@@ -167,10 +172,14 @@ export function LiteratureDiscoveryPanel({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
 
+  // roundsRef 동기화
+  useEffect(() => { roundsRef.current = rounds }, [rounds])
+
   // ── Derived ─────────────────────────────────────────────
   const intent           = researchIntent?.trim() ?? ''
   const totalPool        = existingPapers.length + sessionSaved.length
-  const poolReady        = totalPool >= POOL_THRESHOLD
+  const poolReady        = rounds.filter(r => r.phase === 'done').length >= MIN_ROUNDS_FOR_TOPICS
+                        && totalPool >= MIN_PAPERS_FOR_TOPICS
   const hasQuestions     = questions.length > 0
 
   // ── Step 1 / Refresh: Generate Questions ────────────────
@@ -209,7 +218,7 @@ export function LiteratureDiscoveryPanel({
     roundId: string,
     progressLabel: string,
   ) => {
-    let result = await searchPapers(query, { limit: 20, yearFrom })
+    let result = await searchPapers(query, { limit: 40, yearFrom })
     let retryCount = 0
     while (!result.success && result.error === 'RATE_LIMIT' && retryCount < 4) {
       const waitSecs = result.retryAfterSecs
@@ -226,7 +235,7 @@ export function LiteratureDiscoveryPanel({
       setRounds((prev) => prev.map((r) =>
         r.id === roundId ? { ...r, error: null } : r,
       ))
-      result = await searchPapers(query, { limit: 20, yearFrom })
+      result = await searchPapers(query, { limit: 40, yearFrom })
       retryCount++
     }
     return result
@@ -256,7 +265,7 @@ export function LiteratureDiscoveryPanel({
 
     const searches = plan?.searches ?? [{
       id: 's1', purpose: '직접 탐색',
-      query: question.slice(0, 100), yearFrom: undefined,
+      query: question.slice(0, 100), query_variations: [] as string[], yearFrom: undefined,
     }]
 
     // 각 검색 결과를 서브쿼리별로 보관 (중복 제거 전)
@@ -272,6 +281,7 @@ export function LiteratureDiscoveryPanel({
           : r,
       ))
 
+      // 주 쿼리 실행
       const res = await fetchWithRetry(sq.query, sq.yearFrom, roundId, progress || sq.purpose)
 
       if (!res.success) {
@@ -285,7 +295,22 @@ export function LiteratureDiscoveryPanel({
         return
       }
 
-      groupedResults.push({ search_id: sq.id, purpose: sq.purpose, papers: res.data })
+      // 변형 쿼리 병렬 실행 후 합산 (주 쿼리 실패 시에는 skip)
+      const variations = sq.query_variations ?? []
+      let groupPapers: FoundPaper[] = res.data
+
+      if (variations.length > 0) {
+        const varResults = await Promise.allSettled(
+          variations.map((vq: string) => searchPapers(vq, { limit: 40, yearFrom: sq.yearFrom }))
+        )
+        for (const vr of varResults) {
+          if (vr.status === 'fulfilled' && vr.value.success) {
+            groupPapers = [...groupPapers, ...vr.value.data]
+          }
+        }
+      }
+
+      groupedResults.push({ search_id: sq.id, purpose: sq.purpose, papers: groupPapers })
     }
 
     // 중복 제거 (semanticId 기준, 첫 등장 우선)
@@ -381,6 +406,12 @@ export function LiteratureDiscoveryPanel({
     await runSearchPhases(roundId, question)
   }, [activePhase, runSearchPhases])
 
+  // ── Delete round ─────────────────────────────────────────
+  const handleDeleteRound = useCallback(async (roundId: string) => {
+    setRounds((prev) => prev.filter((r) => r.id !== roundId))
+    await deleteDiscoveryRound(roundId).catch(() => {})
+  }, [])
+
   // ── Save selected papers ─────────────────────────────────
   const handleSavePaper = useCallback(async (roundId: string, paper: FoundPaper) => {
     if (savedIdsRef.current.has(paper.semanticId)) return
@@ -431,16 +462,19 @@ export function LiteratureDiscoveryPanel({
     setLoadingTopics(true)
     setTopicsError(null)
 
+    const currentRounds = roundsRef.current
     const allPapers: PoolPaper[] = [
       ...existingPapers,
       ...sessionSaved,
     ]
 
-    const allInsights = rounds
+    const allInsights = currentRounds
       .map((r) => r.user_insight)
       .filter((i): i is string => !!i)
 
-    const result = await recommendTopics(projectName, intent, allPapers, allInsights)
+    const allQuestions = currentRounds.map((r) => r.question)
+
+    const result = await recommendTopics(projectName, intent, allPapers, allInsights, allQuestions)
     if (!result.success) {
       setTopicsError(result.error)
     } else {
@@ -510,11 +544,11 @@ export function LiteratureDiscoveryPanel({
             </span>
             <span>·</span>
             <span>탐색 {rounds.length}회</span>
-            {totalPool < POOL_THRESHOLD && (
+            {!poolReady && (
               <>
                 <span>·</span>
                 <span className="text-zinc-600">
-                  주제 추천 활성화까지 {POOL_THRESHOLD - totalPool}편 더
+                  주제 추천: 탐색 {MIN_ROUNDS_FOR_TOPICS}회 + {MIN_PAPERS_FOR_TOPICS}편 수집 필요
                 </span>
               </>
             )}
@@ -772,6 +806,7 @@ export function LiteratureDiscoveryPanel({
             existingDois={existingDois}
             onSavePaper={(paper) => handleSavePaper(round.id, paper)}
             onSaveAll={() => handleSaveAll(round.id)}
+            onDelete={() => handleDeleteRound(round.id)}
             onToggleExpand={() =>
               setRounds((prev) =>
                 prev.map((r) =>
@@ -802,7 +837,7 @@ export function LiteratureDiscoveryPanel({
             <p className="text-[11px] text-zinc-600 mt-0.5">
               {poolReady
                 ? `${totalPool}편 분석 기반`
-                : `${totalPool} / ${POOL_THRESHOLD}편 — 아직 탐색 필요`}
+                : `논문 ${totalPool}/${MIN_PAPERS_FOR_TOPICS}편 · 탐색 ${rounds.filter(r => r.phase === 'done').length}/${MIN_ROUNDS_FOR_TOPICS}회`}
             </p>
           </div>
 
@@ -812,13 +847,13 @@ export function LiteratureDiscoveryPanel({
                 <span className="text-xs text-zinc-500">{totalPool}</span>
               </div>
               <p className="text-xs text-zinc-600">
-                {POOL_THRESHOLD}편 이상 수집 후<br />주제 추천이 활성화됩니다
+                탐색 {MIN_ROUNDS_FOR_TOPICS}회 이상 + 논문 {MIN_PAPERS_FOR_TOPICS}편 이상<br />수집 후 주제 추천이 활성화됩니다
               </p>
               {/* Progress bar */}
               <div className="mt-3 h-1 rounded-full bg-zinc-800">
                 <div
                   className="h-1 rounded-full bg-indigo-600 transition-all"
-                  style={{ width: `${Math.min(100, (totalPool / POOL_THRESHOLD) * 100)}%` }}
+                  style={{ width: `${Math.min(100, (totalPool / Math.max(MIN_PAPERS_FOR_TOPICS, 1)) * 100)}%` }}
                 />
               </div>
             </div>
@@ -898,6 +933,7 @@ interface RoundCardProps {
   onToggleExpand:   () => void
   onToggleUnrelated: () => void
   onRetry:          () => void
+  onDelete:         () => void
 }
 
 const MATCH_CONFIG: Record<PaperMatch, { label: string; dot: string; rowCls: string }> = {
@@ -907,7 +943,7 @@ const MATCH_CONFIG: Record<PaperMatch, { label: string; dot: string; rowCls: str
 }
 
 function SearchRoundCard({
-  round, roundNumber, existingDois, onSavePaper, onSaveAll, onToggleExpand, onToggleUnrelated, onRetry,
+  round, roundNumber, existingDois, onSavePaper, onSaveAll, onToggleExpand, onToggleUnrelated, onRetry, onDelete,
 }: RoundCardProps) {
   const verified    = round.verifications.size > 0
   const directCount = verified
@@ -1005,6 +1041,13 @@ function SearchRoundCard({
             <span className="text-xs text-zinc-600">{round.papers.length}편</span>
           )}
           <span className="text-xs text-zinc-700">{round.expanded ? '▾' : '▸'}</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete() }}
+            className="ml-1 flex h-5 w-5 items-center justify-center rounded text-zinc-600 hover:bg-red-900/30 hover:text-red-400 transition-colors"
+            title="이 탐색 기록 삭제"
+          >
+            ×
+          </button>
         </div>
       </div>
 
@@ -1250,6 +1293,11 @@ function TopicCard({ topic, index, onStart, disabled }: TopicCardProps) {
               <div className="mt-2 space-y-1.5">
                 <p className="text-[11px] text-zinc-500 leading-snug">{topic.gap}</p>
                 <p className="text-[11px] text-zinc-600 leading-snug italic">{topic.novelty}</p>
+                {topic.acceptance_rationale && (
+                  <p className="text-[11px] text-indigo-400/70 leading-snug">
+                    📋 {topic.acceptance_rationale}
+                  </p>
+                )}
               </div>
             )}
           </div>

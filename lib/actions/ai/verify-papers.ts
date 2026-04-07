@@ -39,7 +39,7 @@ export async function verifyPaperRelevance(
 ): Promise<PaperVerification[]> {
   if (papers.length === 0) return []
 
-  const batch = papers.slice(0, 20)
+  const batch = papers.slice(0, 30)
 
   const paperListStr = batch
     .map(
@@ -47,7 +47,7 @@ export async function verifyPaperRelevance(
         `[${i}] "${p.title}"` +
         (p.year    ? ` (${p.year})` : '') +
         (p.journal ? ` — ${p.journal}` : '') +
-        (p.abstract ? `\n    Abstract 요약: ${p.abstract.slice(0, 200)}` : ''),
+        (p.abstract ? `\n    Abstract: ${p.abstract.slice(0, 400)}` : ''),
     )
     .join('\n\n')
 
@@ -75,9 +75,9 @@ ${paperListStr}
 ]
 
 판정 기준:
-- direct   : 연구 질문의 핵심 주제·방법론을 직접 다루는 논문. 이 연구를 쓰지 않으면 논거가 약해지는 수준.
-- partial  : 연구 질문과 관련은 있지만 핵심 주제가 아님. 배경·보강 참고용.
-- unrelated: 키워드만 겹칠 뿐 실제 주제·맥락이 다름 (false positive).
+- direct   : 연구 질문의 핵심 주제·방법론과 명확히 관련된 논문. 핵심 키워드 및 연구 방향이 일치하거나 연구에 직접 활용 가능한 수준. (기준을 넓게 적용 — 관련성이 있다고 판단되면 direct 선호)
+- partial  : 연구 질문과 간접적으로 관련 있거나 배경·맥락 참고용인 논문.
+- unrelated: 키워드만 겹칠 뿐 실제 주제·맥락이 다름 (명백한 false positive만 해당).
 
 ⚠ 중요: 논문의 임팩트·인용 수는 판단 기준이 아닙니다. 오직 질문과의 주제 일치 여부만 봅니다.
 JSON 배열만 반환, 마크다운 없이.

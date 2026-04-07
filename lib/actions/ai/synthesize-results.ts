@@ -33,7 +33,7 @@ export async function synthesizeSearchResults(
 ): Promise<PaperVerification[]> {
   if (flatPapers.length === 0) return []
 
-  const batch = flatPapers.slice(0, 25)
+  const batch = flatPapers.slice(0, 30)
 
   // 검색별 그룹 맵: semanticId → search_id
   const paperSearchMap = new Map<string, string>()
@@ -60,7 +60,7 @@ export async function synthesizeSearchResults(
         `[${i}] ${srcNote} "${p.title}"` +
         (p.year    ? ` (${p.year})` : '') +
         (p.journal ? ` — ${p.journal}` : '') +
-        (p.abstract ? `\n    Abstract 요약: ${p.abstract.slice(0, 200)}` : '')
+        (p.abstract ? `\n    Abstract: ${p.abstract.slice(0, 400)}` : '')
       )
     })
     .join('\n\n')
