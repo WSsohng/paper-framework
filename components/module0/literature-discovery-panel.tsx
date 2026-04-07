@@ -17,6 +17,14 @@ import {
   type PoolPaper,
 } from '@/lib/actions/ai/topic-recommendations'
 import { createTrack } from '@/lib/actions/tracks'
+import {
+  getDiscoveryRounds,
+  saveDiscoveryRound,
+  updateRoundSavedIds,
+  updateRoundInsight,
+  clearDiscoveryRounds,
+  type DiscoveryRoundRow,
+} from '@/lib/actions/discovery-rounds'
 
 // ── Constants ─────────────────────────────────────────────
 const POOL_THRESHOLD = 15   // papers needed to unlock topic recommendations
@@ -63,66 +71,24 @@ interface Props {
   existingPapers: PoolPaper[]
 }
 
-// ── Session persistence helpers ───────────────────────────
+// ── DB row → SearchRound 변환 ─────────────────────────────
 
-type SerializedRound = Omit<SearchRound, 'verifications' | 'savedIds'> & {
-  verifications: [number, PaperVerification][]
-  savedIds:      string[]
-}
-
-function serializeRound(r: SearchRound): SerializedRound {
+function rowToRound(row: DiscoveryRoundRow): SearchRound {
   return {
-    ...r,
-    verifications: Array.from(r.verifications.entries()),
-    savedIds:      Array.from(r.savedIds),
-  }
-}
-
-function deserializeRound(r: SerializedRound): SearchRound {
-  return {
-    ...r,
-    phase:         r.phase === 'done' ? 'done' : 'done', // 미완료 라운드는 done으로 처리
-    verifications: new Map(r.verifications),
-    savedIds:      new Set(r.savedIds),
-  }
-}
-
-function sessionKey(projectId: string) {
-  return `paper-discovery-${projectId}`
-}
-
-function loadSession(projectId: string): {
-  rounds:     SearchRound[]
-  questions:  ResearchQuestion[]
-  isFollowUp: boolean
-} | null {
-  try {
-    const raw = localStorage.getItem(sessionKey(projectId))
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    return {
-      rounds:     (parsed.rounds ?? []).map(deserializeRound),
-      questions:  parsed.questions ?? [],
-      isFollowUp: parsed.isFollowUp ?? false,
-    }
-  } catch {
-    return null
-  }
-}
-
-function saveSession(projectId: string, data: {
-  rounds:     SearchRound[]
-  questions:  ResearchQuestion[]
-  isFollowUp: boolean
-}) {
-  try {
-    localStorage.setItem(sessionKey(projectId), JSON.stringify({
-      rounds:     data.rounds.map(serializeRound),
-      questions:  data.questions,
-      isFollowUp: data.isFollowUp,
-    }))
-  } catch {
-    // 스토리지 용량 초과 등 무시
+    id:           row.id,
+    question:     row.question,
+    angle:        row.angle,
+    user_insight: row.user_insight,
+    keywords:     row.keywords,
+    papers:       row.papers,
+    verifications: new Map(
+      row.verifications.map((v) => [v.index, v as PaperVerification])
+    ),
+    savedIds:      new Set(row.saved_semantic_ids),
+    phase:         'done',
+    expanded:      false,
+    showUnrelated: row.show_unrelated,
+    error:         null,
   }
 }
 
@@ -137,8 +103,8 @@ export function LiteratureDiscoveryPanel({
   const router = useRouter()
   const selectedProjectId = projectId
 
-  // ── Session restore (localStorage) ─────────────────────
-  const [sessionLoaded, setSessionLoaded] = useState(false)
+  // ── DB 로드 상태 ─────────────────────────────────────────
+  const [dbLoaded, setDbLoaded] = useState(false)
 
   // Questions state
   const [questions, setQuestions]       = useState<ResearchQuestion[]>([])
@@ -165,23 +131,17 @@ export function LiteratureDiscoveryPanel({
   const [customTopic, setCustomTopic]   = useState('')
   const [creatingTrack, setCreatingTrack] = useState(false)
 
-  // ── localStorage: 마운트 시 복원 ───────────────────────
+  // ── DB: 마운트 시 이전 라운드 복원 ─────────────────────
   useEffect(() => {
-    const saved = loadSession(projectId)
-    if (saved) {
-      if (saved.rounds.length > 0)    setRounds(saved.rounds)
-      if (saved.questions.length > 0) setQuestions(saved.questions)
-      setIsFollowUp(saved.isFollowUp)
-    }
-    setSessionLoaded(true)
+    getDiscoveryRounds(projectId).then((rows) => {
+      if (rows.length > 0) {
+        setRounds(rows.map(rowToRound))
+        setIsFollowUp(true)
+      }
+      setDbLoaded(true)
+    })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
-
-  // ── localStorage: 변경 시 자동저장 ─────────────────────
-  useEffect(() => {
-    if (!sessionLoaded) return
-    saveSession(projectId, { rounds, questions, isFollowUp })
-  }, [projectId, rounds, questions, isFollowUp, sessionLoaded])
 
   // ── Derived ─────────────────────────────────────────────
   const intent           = researchIntent?.trim() ?? ''
@@ -289,7 +249,29 @@ export function LiteratureDiscoveryPanel({
       r.id === roundId ? { ...r, verifications: verMap, phase: 'done' } : r,
     ))
     setActivePhase(null)
-  }, [activePhase, intent, selectedProjectId])
+
+    // DB에 라운드 저장 (완료 시점)
+    // roundId가 임시 UUID → DB에서 새 ID 반환 후 교체
+    const currentRound = rounds.find(r => r.id === roundId)
+    if (currentRound) {
+      const kw = currentRound.keywords
+      const saveResult = await saveDiscoveryRound({
+        project_id:    projectId,
+        question,
+        angle:         currentRound.angle,
+        user_insight:  currentRound.user_insight,
+        keywords:      kw,
+        papers:        currentRound.papers.length > 0 ? currentRound.papers : papers,
+        verifications: verifications.map(v => ({ index: v.index, match: v.match, note: v.note ?? '' })),
+      })
+      // 임시 UUID를 DB에서 받은 실제 ID로 교체
+      if (saveResult.success && saveResult.id) {
+        setRounds((prev) => prev.map((r) =>
+          r.id === roundId ? { ...r, id: saveResult.id!, verifications: verMap, phase: 'done' } : r,
+        ))
+      }
+    }
+  }, [activePhase, intent, selectedProjectId, projectId, rounds])
 
   // ── Step 2a: 새 라운드 시작 ──────────────────────────────
   const handleSearch = useCallback(async (question: string, angle: string, insight: string | null) => {
@@ -337,6 +319,8 @@ export function LiteratureDiscoveryPanel({
           if (r.id !== roundId) return r
           const next = new Set(r.savedIds)
           next.add(paper.semanticId)
+          // DB 업데이트 (fire-and-forget)
+          updateRoundSavedIds(roundId, Array.from(next)).catch(() => {})
           return { ...r, savedIds: next }
         }),
       )
@@ -400,6 +384,15 @@ export function LiteratureDiscoveryPanel({
     }
     setCreatingTrack(false)
   }, [projectId, router])
+
+  // ── DB 로딩 중 ───────────────────────────────────────────
+  if (!dbLoaded) {
+    return (
+      <div className="flex items-center gap-2 py-8 text-sm text-zinc-600">
+        <Spinner />이전 탐색 기록 불러오는 중…
+      </div>
+    )
+  }
 
   // ── Empty state ──────────────────────────────────────────
   if (!intent) {
@@ -473,9 +466,9 @@ export function LiteratureDiscoveryPanel({
           )}
           {rounds.length > 0 && (
             <button
-              onClick={() => {
-                if (!confirm('이번 탐색 세션을 초기화할까요? 저장된 논문은 유지됩니다.')) return
-                localStorage.removeItem(sessionKey(projectId))
+              onClick={async () => {
+                if (!confirm('탐색 히스토리를 초기화할까요? 저장된 논문은 유지됩니다.')) return
+                await clearDiscoveryRounds(projectId)
                 setRounds([])
                 setQuestions([])
                 setIsFollowUp(false)
@@ -483,7 +476,7 @@ export function LiteratureDiscoveryPanel({
               }}
               className="ml-auto text-xs text-zinc-600 hover:text-red-400 transition-colors"
             >
-              세션 초기화
+              히스토리 초기화
             </button>
           )}
         </div>
