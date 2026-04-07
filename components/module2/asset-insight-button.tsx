@@ -14,16 +14,18 @@ interface RefPaperOption {
 }
 
 interface Props {
-  projectId:          string
-  referencePapers:    RefPaperOption[]
+  projectId:           string
+  referencePapers:     RefPaperOption[]
   existingAssetTitles: string[]
+  initialPaperId?:     string   // pre-select this paper when dialog opens
+  triggerLabel?:       string   // custom button label
 }
 
 const TIER_LABEL: Record<number, string> = { 1: 'T1', 2: 'T2', 3: 'T3' }
 
-export function AssetInsightButton({ projectId, referencePapers, existingAssetTitles }: Props) {
+export function AssetInsightButton({ projectId, referencePapers, existingAssetTitles, initialPaperId, triggerLabel }: Props) {
   const [open, setOpen]               = useState(false)
-  const [selectedPaperId, setSelected] = useState<string>('')
+  const [selectedPaperId, setSelected] = useState<string>(initialPaperId ?? '')
   const [insights,  setInsights]       = useState<AssetInsight[]>([])
   const [savedIdx,  setSavedIdx]       = useState<Set<number>>(new Set())
   const [checkedIdx,setCheckedIdx]     = useState<Set<number>>(new Set())
@@ -92,7 +94,7 @@ export function AssetInsightButton({ projectId, referencePapers, existingAssetTi
         className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-800/60 px-3 py-1.5 text-xs text-zinc-400 hover:border-zinc-600 hover:text-zinc-300 transition-colors"
       >
         <span className="text-indigo-500">✦</span>
-        AI 인사이트 추출
+        {triggerLabel ?? 'AI 인사이트 추출'}
       </button>
 
       {open && (

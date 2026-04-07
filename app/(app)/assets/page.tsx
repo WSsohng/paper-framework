@@ -28,9 +28,9 @@ const SECTION_LABEL_MAP: Record<AssetSection | '__none', string> = {
 export default async function AssetsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>
+  searchParams: Promise<{ view?: string; from_paper?: string }>
 }) {
-  const { view } = await searchParams
+  const { view, from_paper } = await searchParams
   const isSectionView = view === 'section'
 
   const selectedProjectId = await getSelectedProjectId()
@@ -58,6 +58,33 @@ export default async function AssetsPage({
       id: p.id, title: p.title, year: p.year,
       tier: p.tier as import('@/lib/types').PaperTier | null,
     }))
+
+  // M2 자산과 연결된 논문 ID 집합
+  const linkedPaperIds = new Set(assets.map((a) => a.reference_paper_id).filter(Boolean))
+
+  // M0에서 저장됐지만 아직 자산이 없는 논문 (티어 높은 순 → 최신 순)
+  // from_paper 파라미터로 지정된 논문은 맨 앞에
+  const unprocessedPapers = refPapers
+    .filter((p) => !linkedPaperIds.has(p.id))
+    .sort((a, b) => {
+      if (from_paper) {
+        if (a.id === from_paper) return -1
+        if (b.id === from_paper) return 1
+      }
+      const tierA = a.tier ?? 99
+      const tierB = b.tier ?? 99
+      if (tierA !== tierB) return tierA - tierB
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    })
+
+  // 자산 추출용 RefPaperOption (abstract/notes 포함)
+  const refPaperOptions = refPapers.map((p) => ({
+    id:       p.id,
+    title:    p.title,
+    abstract: p.abstract,
+    notes:    p.notes,
+    tier:     p.tier,
+  }))
 
   // 연결된 참고문헌 수
   const linkedCount = assets.filter((a) => a.reference_paper_id).length
@@ -102,6 +129,75 @@ export default async function AssetsPage({
           />
         </div>
       </div>
+
+      {/* M0 → M2 미처리 논문 대기열 */}
+      {unprocessedPapers.length > 0 && selectedProjectId && (
+        <div className="mx-8 mt-5 rounded-xl border border-amber-800/40 bg-amber-950/20">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-amber-800/30">
+            <div className="flex items-center gap-2">
+              <span className="text-amber-400 text-sm">●</span>
+              <p className="text-sm font-medium text-amber-300">
+                M0에서 저장된 논문 중 자산 미추출 {unprocessedPapers.length}편
+              </p>
+              <span className="text-xs text-zinc-600">— 인사이트를 추출해 자산으로 연결하세요</span>
+            </div>
+            <Link
+              href="/reference-papers?view=list"
+              className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+            >
+              M0 논문 목록 →
+            </Link>
+          </div>
+          <div className="divide-y divide-zinc-800/50">
+            {unprocessedPapers.slice(0, 5).map((paper) => (
+              <div key={paper.id} className="flex items-center justify-between gap-4 px-5 py-3">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  {paper.tier && (
+                    <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                      paper.tier === 1 ? 'bg-amber-900/50 text-amber-300' :
+                      paper.tier === 2 ? 'bg-zinc-800 text-zinc-400' :
+                                         'bg-zinc-900 text-zinc-600'
+                    }`}>
+                      T{paper.tier}
+                    </span>
+                  )}
+                  <p className="text-sm text-zinc-300 truncate">{paper.title}</p>
+                  {paper.year && (
+                    <span className="shrink-0 text-xs text-zinc-600">{paper.year}</span>
+                  )}
+                  {!paper.abstract && !paper.notes && (
+                    <span className="shrink-0 text-[10px] text-zinc-700 italic">abstract 없음</span>
+                  )}
+                </div>
+                {(paper.abstract || paper.notes) ? (
+                  <AssetInsightButton
+                    projectId={selectedProjectId}
+                    referencePapers={refPaperOptions.filter(p => p.abstract || p.notes)}
+                    existingAssetTitles={assets.map((a) => a.title)}
+                    initialPaperId={paper.id}
+                    triggerLabel="인사이트 추출"
+                  />
+                ) : (
+                  <Link
+                    href={`/reference-papers/${paper.id}`}
+                    className="shrink-0 rounded border border-zinc-700 px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 transition-colors"
+                  >
+                    메모 추가 →
+                  </Link>
+                )}
+              </div>
+            ))}
+            {unprocessedPapers.length > 5 && (
+              <div className="px-5 py-2.5 text-xs text-zinc-600">
+                외 {unprocessedPapers.length - 5}편 더…
+                <Link href="/reference-papers?view=list" className="ml-2 text-zinc-500 hover:text-zinc-300 transition-colors">
+                  전체 보기 →
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* M2 가이드 바 */}
       <ModuleGuideBar

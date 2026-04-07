@@ -374,13 +374,22 @@ export default async function ReferencePapersPage({
                     {/* 하단 행: 개념 태그 + AI 분석 버튼 */}
                     <div className="mt-2.5 flex items-center justify-between gap-3 pl-8">
                       <ConceptChipList concepts={paper.concepts ?? []} max={7} size="xs" />
-                      {project?.research_intent && (
-                        <ConceptExtractButton
-                          paperId={paper.id}
-                          researchIntent={project.research_intent}
-                          hasAnalysis={(paper.concepts?.length ?? 0) > 0}
-                        />
-                      )}
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/assets?from_paper=${paper.id}`}
+                          className="text-[10px] text-zinc-700 hover:text-indigo-400 transition-colors whitespace-nowrap"
+                          title="M2 자산 추출하기"
+                        >
+                          M2 분석 →
+                        </Link>
+                        {project?.research_intent && (
+                          <ConceptExtractButton
+                            paperId={paper.id}
+                            researchIntent={project.research_intent}
+                            hasAnalysis={(paper.concepts?.length ?? 0) > 0}
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
                   )
