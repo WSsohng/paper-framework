@@ -2,6 +2,9 @@
 // PaperFactory — shared domain types
 // ============================================================
 
+// ── M0: 검색 계획 (plan-search.ts 타입 재export) ──────────
+export type { SearchQuery, SearchQueryType, SearchPlan } from '@/lib/actions/ai/plan-search'
+
 // ── Project (최상위) ──────────────────────────────────────
 
 export type ProjectStatus = 'active' | 'paused' | 'completed' | 'archived'

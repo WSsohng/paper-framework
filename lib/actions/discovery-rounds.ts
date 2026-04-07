@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import type { FoundPaper } from '@/lib/actions/search/search-papers'
 import type { PaperVerification } from '@/lib/actions/ai/verify-papers'
-import type { KeywordExtractResult } from '@/lib/actions/ai/extract-keywords'
+import type { SearchPlan } from '@/lib/actions/ai/plan-search'
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -14,7 +14,8 @@ export interface DiscoveryRoundRow {
   question:           string
   angle:              string
   user_insight:       string | null
-  keywords:           KeywordExtractResult | null
+  /** SearchPlan (신규) 또는 구 KeywordExtractResult 형식 (레거시 호환) */
+  keywords:           SearchPlan | Record<string, unknown> | null
   papers:             FoundPaper[]
   verifications:      { index: number; match: PaperVerification['match']; note: string }[]
   saved_semantic_ids: string[]
@@ -45,7 +46,7 @@ export interface SaveDiscoveryRoundInput {
   question:      string
   angle:         string
   user_insight:  string | null
-  keywords:      KeywordExtractResult | null
+  keywords:      SearchPlan | Record<string, unknown> | null
   papers:        FoundPaper[]
   verifications: { index: number; match: PaperVerification['match']; note: string }[]
 }

@@ -8,8 +8,9 @@ import {
   type SearchHistoryItem,
 } from '@/lib/actions/ai/research-questions'
 import { searchPapers, type FoundPaper } from '@/lib/actions/search/search-papers'
-import { extractSearchKeywords, type KeywordExtractResult } from '@/lib/actions/ai/extract-keywords'
+import { planSearch, type SearchPlan } from '@/lib/actions/ai/plan-search'
 import { verifyPaperRelevance, type PaperVerification, type PaperMatch } from '@/lib/actions/ai/verify-papers'
+import { synthesizeSearchResults } from '@/lib/actions/ai/synthesize-results'
 import { createReferencePaper } from '@/lib/actions/reference-papers'
 import {
   recommendTopics,
@@ -43,8 +44,8 @@ interface SearchRound {
   question:     string
   angle:        string
   user_insight: string | null
-  // ── 키워드 추출 결과
-  keywords:     KeywordExtractResult | null
+  // ── 검색 계획 (planSearch 결과)
+  search_plan:  SearchPlan | null
   // ── 검색 결과
   papers:       FoundPaper[]
   error:        string | null
@@ -52,9 +53,11 @@ interface SearchRound {
   verifications: Map<number, PaperVerification>
   // ── 상태
   phase:        SearchPhase
+  // 다중 검색 진행 상황 (예: "1/2")
+  searchProgress: string | null
   savedIds:     Set<string>
   expanded:     boolean
-  showUnrelated: boolean  // unrelated 논문 표시 여부 (기본 숨김)
+  showUnrelated: boolean
 }
 
 interface PendingQuestion {
@@ -73,22 +76,34 @@ interface Props {
 
 // ── DB row → SearchRound 변환 ─────────────────────────────
 
+function isSearchPlan(kw: unknown): kw is SearchPlan {
+  return (
+    typeof kw === 'object' &&
+    kw !== null &&
+    'searches' in kw &&
+    Array.isArray((kw as SearchPlan).searches)
+  )
+}
+
 function rowToRound(row: DiscoveryRoundRow): SearchRound {
+  const rawKw = row.keywords
   return {
     id:           row.id,
     question:     row.question,
     angle:        row.angle,
     user_insight: row.user_insight,
-    keywords:     row.keywords,
-    papers:       row.papers,
-    verifications: new Map(
+    // 신규(SearchPlan) 형식만 채택; 레거시(KeywordExtractResult)는 null 처리
+    search_plan:    isSearchPlan(rawKw) ? rawKw : null,
+    papers:         row.papers,
+    verifications:  new Map(
       row.verifications.map((v) => [v.index, v as PaperVerification])
     ),
-    savedIds:      new Set(row.saved_semantic_ids),
-    phase:         'done',
-    expanded:      false,
-    showUnrelated: row.show_unrelated,
-    error:         null,
+    savedIds:       new Set(row.saved_semantic_ids),
+    phase:          'done',
+    searchProgress: null,
+    expanded:       false,
+    showUnrelated:  row.show_unrelated,
+    error:          null,
   }
 }
 
@@ -178,100 +193,160 @@ export function LiteratureDiscoveryPanel({
 
   const searching = activePhase != null
 
-  // ── Step 2: 3단계 검색 플로우 (공통 로직) ──────────────
-  const runSearchPhases = useCallback(async (roundId: string, question: string) => {
-    // 이미 검색 중이면 무시 (중복 실행 방지)
-    if (activePhase != null) return
-
-    // Phase 1: 키워드 추출
-    setActivePhase('extracting')
-    setRounds((prev) => prev.map((r) => r.id === roundId ? { ...r, phase: 'extracting', error: null, papers: [], verifications: new Map(), keywords: null } : r))
-
-    const kwResult = await extractSearchKeywords(question, intent, selectedProjectId)
-    const kw = kwResult.success ? kwResult.data : null
-
-    setRounds((prev) => prev.map((r) =>
-      r.id === roundId ? { ...r, keywords: kw, phase: 'searching' } : r,
-    ))
-
-    // Phase 2: 논문 검색 (클라이언트 사이드 rate limit 재시도)
-    setActivePhase('searching')
-    const searchQuery = kw?.search_query ?? question
-    const yearFrom    = kw?.year_from    ?? undefined
-
-    let searchResult = await searchPapers(searchQuery, { limit: 20, yearFrom })
+  // ── 단일 검색 + rate-limit 재시도 헬퍼 ─────────────────
+  const fetchWithRetry = useCallback(async (
+    query: string,
+    yearFrom: number | undefined,
+    roundId: string,
+    progressLabel: string,
+  ) => {
+    let result = await searchPapers(query, { limit: 20, yearFrom })
     let retryCount = 0
-    while (!searchResult.success && searchResult.error === 'RATE_LIMIT' && retryCount < 4) {
-      // Retry-After 헤더 값 사용, 없으면 점진적으로 증가 (최소 20초)
-      const waitSecs = searchResult.retryAfterSecs
-        ? Math.max(searchResult.retryAfterSecs, 5)
+    while (!result.success && result.error === 'RATE_LIMIT' && retryCount < 4) {
+      const waitSecs = result.retryAfterSecs
+        ? Math.max(result.retryAfterSecs, 5)
         : (retryCount + 1) * 20
       for (let s = waitSecs; s > 0; s--) {
         setRounds((prev) => prev.map((r) =>
-          r.id === roundId ? { ...r, phase: 'searching', error: `요청 한도 초과 — ${s}초 후 재시도합니다… (${retryCount + 1}/4)` } : r,
+          r.id === roundId
+            ? { ...r, phase: 'searching', error: `${progressLabel} — 요청 한도 초과, ${s}초 후 재시도… (${retryCount + 1}/4)` }
+            : r,
         ))
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+        await new Promise((res) => setTimeout(res, 1000))
       }
       setRounds((prev) => prev.map((r) =>
-        r.id === roundId ? { ...r, error: null, phase: 'searching' } : r,
+        r.id === roundId ? { ...r, error: null } : r,
       ))
-      searchResult = await searchPapers(searchQuery, { limit: 20, yearFrom })
+      result = await searchPapers(query, { limit: 20, yearFrom })
       retryCount++
     }
+    return result
+  }, [])
 
-    if (!searchResult.success) {
-      const msg = searchResult.error === 'RATE_LIMIT'
-        ? '논문 DB 요청 한도 초과. ↻ 다시 검색 버튼으로 재시도하거나 잠시 후 다시 시도해 주세요.'
-        : searchResult.error
-      setRounds((prev) => prev.map((r) =>
-        r.id === roundId ? { ...r, error: msg, phase: 'done' } : r,
-      ))
-      setActivePhase(null)
-      return
-    }
+  // ── Step 2: 의도 기반 다중 검색 파이프라인 ───────────────
+  const runSearchPhases = useCallback(async (roundId: string, question: string) => {
+    if (activePhase != null) return
 
-    const papers = searchResult.data
+    // ── Phase 1: 검색 계획 수립 (planSearch) ─────────────
+    setActivePhase('extracting')
     setRounds((prev) => prev.map((r) =>
-      r.id === roundId ? { ...r, papers, phase: 'verifying' } : r,
+      r.id === roundId
+        ? { ...r, phase: 'extracting', error: null, papers: [], verifications: new Map(), search_plan: null, searchProgress: null }
+        : r,
     ))
 
-    // Phase 3: 관련성 검토
+    const planResult = await planSearch(question, intent, selectedProjectId)
+    const plan       = planResult.success ? planResult.data : null
+
+    setRounds((prev) => prev.map((r) =>
+      r.id === roundId ? { ...r, search_plan: plan, phase: 'searching' } : r,
+    ))
+
+    // ── Phase 2: 각 서브쿼리 순차 실행 ───────────────────
+    setActivePhase('searching')
+
+    const searches = plan?.searches ?? [{
+      id: 's1', purpose: '직접 탐색',
+      query: question.slice(0, 100), yearFrom: undefined,
+    }]
+
+    // 각 검색 결과를 서브쿼리별로 보관 (중복 제거 전)
+    const groupedResults: { search_id: string; purpose: string; papers: FoundPaper[] }[] = []
+
+    for (let i = 0; i < searches.length; i++) {
+      const sq        = searches[i]
+      const progress  = searches.length > 1 ? `검색 ${i + 1}/${searches.length}` : ''
+
+      setRounds((prev) => prev.map((r) =>
+        r.id === roundId
+          ? { ...r, searchProgress: progress || null, error: null }
+          : r,
+      ))
+
+      const res = await fetchWithRetry(sq.query, sq.yearFrom, roundId, progress || sq.purpose)
+
+      if (!res.success) {
+        const msg = res.error === 'RATE_LIMIT'
+          ? '논문 DB 요청 한도 초과. ↻ 다시 검색 버튼으로 재시도하거나 잠시 후 다시 시도해 주세요.'
+          : res.error
+        setRounds((prev) => prev.map((r) =>
+          r.id === roundId ? { ...r, error: msg, phase: 'done', searchProgress: null } : r,
+        ))
+        setActivePhase(null)
+        return
+      }
+
+      groupedResults.push({ search_id: sq.id, purpose: sq.purpose, papers: res.data })
+    }
+
+    // 중복 제거 (semanticId 기준, 첫 등장 우선)
+    const seen      = new Set<string>()
+    const allPapers: FoundPaper[] = []
+    for (const group of groupedResults) {
+      for (const p of group.papers) {
+        if (!seen.has(p.semanticId)) {
+          seen.add(p.semanticId)
+          allPapers.push(p)
+        }
+      }
+    }
+
+    setRounds((prev) => prev.map((r) =>
+      r.id === roundId ? { ...r, papers: allPapers, phase: 'verifying', searchProgress: null } : r,
+    ))
+
+    // ── Phase 3: 관련성 분석 ─────────────────────────────
     setActivePhase('verifying')
-    const verifications = await verifyPaperRelevance(
-      question,
-      intent,
-      papers.map(p => ({ title: p.title, abstract: p.abstract, year: p.year, journal: p.journal })),
-      selectedProjectId,
-    )
-    const verMap = new Map(verifications.map(v => [v.index, v]))
+
+    const isMultiSearch = searches.length > 1 && plan?.query_type !== 'direct_search'
+    let verifications: PaperVerification[]
+
+    if (isMultiSearch && plan) {
+      // gap_analysis / comparison: Claude가 그룹별 컨텍스트로 합성
+      verifications = await synthesizeSearchResults(
+        question,
+        intent,
+        allPapers,
+        groupedResults,
+        plan.synthesis_instruction,
+        selectedProjectId,
+      )
+    } else {
+      // direct_search / trend_analysis: 기존 개별 검토
+      verifications = await verifyPaperRelevance(
+        question,
+        intent,
+        allPapers.map((p) => ({ title: p.title, abstract: p.abstract, year: p.year, journal: p.journal })),
+        selectedProjectId,
+      )
+    }
+
+    const verMap = new Map(verifications.map((v) => [v.index, v]))
 
     setRounds((prev) => prev.map((r) =>
       r.id === roundId ? { ...r, verifications: verMap, phase: 'done' } : r,
     ))
     setActivePhase(null)
 
-    // DB에 라운드 저장 (완료 시점)
-    // roundId가 임시 UUID → DB에서 새 ID 반환 후 교체
-    const currentRound = rounds.find(r => r.id === roundId)
+    // ── DB 저장 ───────────────────────────────────────────
+    const currentRound = rounds.find((r) => r.id === roundId)
     if (currentRound) {
-      const kw = currentRound.keywords
       const saveResult = await saveDiscoveryRound({
         project_id:    projectId,
         question,
         angle:         currentRound.angle,
         user_insight:  currentRound.user_insight,
-        keywords:      kw,
-        papers:        currentRound.papers.length > 0 ? currentRound.papers : papers,
-        verifications: verifications.map(v => ({ index: v.index, match: v.match, note: v.note ?? '' })),
+        keywords:      plan ?? null,
+        papers:        allPapers,
+        verifications: verifications.map((v) => ({ index: v.index, match: v.match, note: v.note ?? '' })),
       })
-      // 임시 UUID를 DB에서 받은 실제 ID로 교체
       if (saveResult.success && saveResult.id) {
         setRounds((prev) => prev.map((r) =>
           r.id === roundId ? { ...r, id: saveResult.id!, verifications: verMap, phase: 'done' } : r,
         ))
       }
     }
-  }, [activePhase, intent, selectedProjectId, projectId, rounds])
+  }, [activePhase, intent, selectedProjectId, projectId, rounds, fetchWithRetry])
 
   // ── Step 2a: 새 라운드 시작 ──────────────────────────────
   const handleSearch = useCallback(async (question: string, angle: string, insight: string | null) => {
@@ -287,8 +362,9 @@ export function LiteratureDiscoveryPanel({
       ...prev,
       {
         id: roundId, question, angle, user_insight: insight,
-        keywords: null, papers: [], error: null,
+        search_plan: null, papers: [], error: null,
         verifications: new Map(), phase: 'extracting',
+        searchProgress: null,
         savedIds: new Set(), expanded: true, showUnrelated: false,
       },
     ])
@@ -617,39 +693,66 @@ export function LiteratureDiscoveryPanel({
         )}
 
         {/* 3단계 진행 표시기 */}
-        {activePhase && (
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-5 py-4 space-y-3">
-            <div className="flex items-center gap-4">
-              {(
-                [
-                  { phase: 'extracting', label: '키워드 추출', desc: 'Claude가 최적 검색어 도출' },
-                  { phase: 'searching',  label: '논문 검색',   desc: '논문 DB 쿼리' },
-                  { phase: 'verifying',  label: '관련성 검토', desc: 'Claude가 결과 필터링' },
-                ] as const
-              ).map((step, i) => {
-                const phases: SearchPhase[] = ['extracting', 'searching', 'verifying']
-                const currentIdx = phases.indexOf(activePhase)
-                const stepIdx    = phases.indexOf(step.phase)
-                const isDone     = stepIdx < currentIdx
-                const isActive   = stepIdx === currentIdx
-                return (
-                  <div key={step.phase} className="flex items-center gap-2">
-                    {i > 0 && <span className="text-zinc-700">→</span>}
-                    <div className={`flex items-center gap-1.5 ${
-                      isActive ? 'text-indigo-300' : isDone ? 'text-emerald-500' : 'text-zinc-600'
-                    }`}>
-                      {isActive ? <Spinner /> : isDone ? <span>✓</span> : <span className="w-4" />}
-                      <div>
-                        <p className="text-xs font-medium">{step.label}</p>
-                        <p className="text-[10px] opacity-70">{step.desc}</p>
+        {activePhase && (() => {
+          const activeRound = rounds.find((r) => r.phase !== 'done')
+          const plan        = activeRound?.search_plan ?? null
+          const steps = [
+            {
+              phase: 'extracting' as const,
+              label: '검색 계획',
+              desc:  plan
+                ? `${plan.query_type === 'gap_analysis' ? '차집합 분석' : plan.query_type === 'comparison' ? '비교 검색' : plan.query_type === 'trend_analysis' ? '트렌드 탐색' : '직접 검색'} · ${plan.searches.length}개 쿼리`
+                : 'Claude가 전략 수립 중',
+            },
+            {
+              phase: 'searching' as const,
+              label: '논문 탐색',
+              desc:  activeRound?.searchProgress
+                ? activeRound.searchProgress
+                : plan && plan.searches.length > 1
+                  ? `${plan.searches.length}개 쿼리 실행`
+                  : '논문 DB 쿼리',
+            },
+            {
+              phase: 'verifying' as const,
+              label: plan?.query_type === 'gap_analysis' || plan?.query_type === 'comparison'
+                ? '갭 분석'
+                : '관련성 검토',
+              desc: plan?.query_type === 'gap_analysis'
+                ? 'Claude가 미적용 기법 식별'
+                : plan?.query_type === 'comparison'
+                  ? 'Claude가 비교 분석'
+                  : 'Claude가 결과 필터링',
+            },
+          ] as const
+          const phases: SearchPhase[] = ['extracting', 'searching', 'verifying']
+          const currentIdx = phases.indexOf(activePhase)
+          return (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-5 py-4 space-y-3">
+              <div className="flex items-center gap-4">
+                {steps.map((step, i) => {
+                  const stepIdx = phases.indexOf(step.phase)
+                  const isDone  = stepIdx < currentIdx
+                  const isActive = stepIdx === currentIdx
+                  return (
+                    <div key={step.phase} className="flex items-center gap-2">
+                      {i > 0 && <span className="text-zinc-700">→</span>}
+                      <div className={`flex items-center gap-1.5 ${
+                        isActive ? 'text-indigo-300' : isDone ? 'text-emerald-500' : 'text-zinc-600'
+                      }`}>
+                        {isActive ? <Spinner /> : isDone ? <span>✓</span> : <span className="w-4" />}
+                        <div>
+                          <p className="text-xs font-medium">{step.label}</p>
+                          <p className="text-[10px] opacity-70">{step.desc}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* Search rounds */}
         {rounds.map((round, roundIdx) => (
@@ -827,28 +930,48 @@ function SearchRoundCard({
               {savedCount > 0 && (
                 <span className="text-[10px] text-emerald-500">{savedCount}편 저장됨</span>
               )}
-              {directCount !== null && (
+              {directCount !== null && directCount > 0 && (
                 <span className="text-[10px] text-emerald-400/80">
-                  직접 관련 {directCount}편
+                  {round.search_plan?.query_type === 'gap_analysis'
+                    ? `갭 후보 ${directCount}편`
+                    : `직접 관련 ${directCount}편`}
                 </span>
               )}
             </div>
             <p className="mt-0.5 text-xs text-zinc-400 leading-snug line-clamp-1">
               {round.question}
             </p>
-            {/* 추출된 키워드 태그 */}
-            {round.keywords && round.keywords.keywords.length > 0 && (
-              <div className="mt-1 flex flex-wrap gap-1">
-                {round.keywords.keywords.map((kw) => (
-                  <span key={kw} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] text-zinc-500 font-mono">
+            {/* 검색 계획 표시 */}
+            {round.search_plan && (
+              <div className="mt-1 flex flex-wrap gap-1 items-center">
+                {/* 쿼리 유형 뱃지 */}
+                {round.search_plan.query_type !== 'direct_search' && (
+                  <span className={`rounded px-1.5 py-0.5 text-[9px] font-semibold ${
+                    round.search_plan.query_type === 'gap_analysis'
+                      ? 'bg-violet-900/40 text-violet-400'
+                      : round.search_plan.query_type === 'comparison'
+                        ? 'bg-blue-900/40 text-blue-400'
+                        : 'bg-teal-900/40 text-teal-400'
+                  }`}>
+                    {round.search_plan.query_type === 'gap_analysis'
+                      ? '차집합'
+                      : round.search_plan.query_type === 'comparison'
+                        ? '비교'
+                        : '트렌드'}
+                  </span>
+                )}
+                {/* 서브쿼리 목적 태그 */}
+                {round.search_plan.searches.map((sq) => (
+                  <span key={sq.id} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] text-zinc-500 font-mono" title={sq.query}>
+                    {sq.purpose}
+                  </span>
+                ))}
+                {/* 대표 키워드 */}
+                {round.search_plan.keywords.slice(0, 4).map((kw) => (
+                  <span key={kw} className="rounded bg-zinc-800/60 px-1.5 py-0.5 text-[9px] text-zinc-600 font-mono">
                     {kw}
                   </span>
                 ))}
-                {round.keywords.year_from && (
-                  <span className="rounded bg-zinc-800/60 px-1.5 py-0.5 text-[9px] text-zinc-600 font-mono">
-                    ≥ {round.keywords.year_from}
-                  </span>
-                )}
               </div>
             )}
             {round.user_insight && (
@@ -862,7 +985,11 @@ function SearchRoundCard({
           {round.phase !== 'done' && round.phase !== 'extracting' && (
             <span className="text-[10px] text-indigo-400 flex items-center gap-1">
               <Spinner />
-              {round.phase === 'searching' ? '검색 중' : '검토 중'}
+              {round.phase === 'searching'
+                ? round.searchProgress ?? '검색 중'
+                : round.search_plan?.query_type === 'gap_analysis'
+                  ? '갭 분석 중'
+                  : '검토 중'}
             </span>
           )}
           {round.papers.length > 0 && (

@@ -1,5 +1,10 @@
 'use server'
 
+/**
+ * @deprecated plan-search.ts (planSearch)로 대체.
+ * 레거시 DB 레코드 호환용으로만 보존.
+ */
+
 import { generateJson } from '@/lib/ai/generate'
 import type { ActionResult } from '@/lib/types'
 

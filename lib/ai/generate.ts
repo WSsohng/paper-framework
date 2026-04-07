@@ -29,6 +29,8 @@ export type AIFeature =
   | 'relevance_tagging'
   | 'track_monitoring'
   | 'search_keywords'
+  | 'search_plan'
+  | 'search_synthesis'
   | 'paper_verification'
   | 'other'
 
