@@ -22,15 +22,24 @@ export async function searchPapersOpenAlex(
   const limit    = Math.min(opts.limit ?? 15, 50)
   const yearFrom = opts.yearFrom ?? null
 
+  const filters: string[] = []
+  if (yearFrom) {
+    // OpenAlex filter 문법: from_publication_date:YYYY-01-01
+    filters.push(`from_publication_date:${yearFrom}-01-01`)
+  }
+
   const params = new URLSearchParams({
-    search:   keyword,
-    'per-page': String(Math.min(limit * 2, 50)), // 여분 확보 후 필터
-    sort:     'relevance_score:desc',
-    select:   'id,display_name,authorships,publication_year,abstract_inverted_index,primary_location,cited_by_count,open_access,type,doi',
+    search:     keyword,
+    'per-page': String(Math.min(limit * 2, 50)),
+    select:     'id,display_name,authorships,publication_year,abstract_inverted_index,primary_location,cited_by_count,open_access,type,doi',
   })
 
-  if (yearFrom) {
-    params.set('filter', `publication_year:>=${yearFrom}`)
+  // sort: search 없이 relevance_score 사용 불가한 경우가 있어 citation_count 기준 정렬 사용
+  // 클라이언트 측에서 최신순으로 재정렬함
+  params.set('sort', 'cited_by_count:desc')
+
+  if (filters.length) {
+    params.set('filter', filters.join(','))
   }
 
   try {
@@ -47,7 +56,8 @@ export async function searchPapersOpenAlex(
         const retryAfterSecs = retryAfter ? Math.ceil(parseFloat(retryAfter)) : 30
         return { success: false, error: 'RATE_LIMIT', retryAfterSecs }
       }
-      return { success: false, error: `OpenAlex 오류: HTTP ${res.status}` }
+      const body = await res.text().catch(() => '')
+      return { success: false, error: `OpenAlex 오류: HTTP ${res.status} — ${body.slice(0, 200)}` }
     }
 
     const json = await res.json() as { results: OAWork[]; meta: { count: number } }
