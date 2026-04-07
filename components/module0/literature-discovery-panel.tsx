@@ -220,6 +220,9 @@ export function LiteratureDiscoveryPanel({
 
   // ── Step 2: 3단계 검색 플로우 (공통 로직) ──────────────
   const runSearchPhases = useCallback(async (roundId: string, question: string) => {
+    // 이미 검색 중이면 무시 (중복 실행 방지)
+    if (activePhase != null) return
+
     // Phase 1: 키워드 추출
     setActivePhase('extracting')
     setRounds((prev) => prev.map((r) => r.id === roundId ? { ...r, phase: 'extracting', error: null, papers: [], verifications: new Map(), keywords: null } : r))
@@ -238,11 +241,14 @@ export function LiteratureDiscoveryPanel({
 
     let searchResult = await searchPapers(searchQuery, { limit: 20, yearFrom })
     let retryCount = 0
-    while (!searchResult.success && searchResult.error === 'RATE_LIMIT' && retryCount < 3) {
-      const waitSecs = (retryCount + 1) * 15
+    while (!searchResult.success && searchResult.error === 'RATE_LIMIT' && retryCount < 4) {
+      // Retry-After 헤더 값 사용, 없으면 점진적으로 증가 (최소 20초)
+      const waitSecs = searchResult.retryAfterSecs
+        ? Math.max(searchResult.retryAfterSecs, 5)
+        : (retryCount + 1) * 20
       for (let s = waitSecs; s > 0; s--) {
         setRounds((prev) => prev.map((r) =>
-          r.id === roundId ? { ...r, phase: 'searching', error: `요청 한도 초과 — ${s}초 후 재시도합니다…` } : r,
+          r.id === roundId ? { ...r, phase: 'searching', error: `요청 한도 초과 — ${s}초 후 재시도합니다… (${retryCount + 1}/4)` } : r,
         ))
         await new Promise((resolve) => setTimeout(resolve, 1000))
       }
@@ -255,7 +261,7 @@ export function LiteratureDiscoveryPanel({
 
     if (!searchResult.success) {
       const msg = searchResult.error === 'RATE_LIMIT'
-        ? 'Semantic Scholar 요청 한도 초과. 잠시 후 ↻ 다시 검색 버튼을 눌러주세요.'
+        ? 'Semantic Scholar 요청 한도 초과. ↻ 다시 검색 버튼으로 재시도하거나 잠시 후 다시 시도해 주세요.'
         : searchResult.error
       setRounds((prev) => prev.map((r) =>
         r.id === roundId ? { ...r, error: msg, phase: 'done' } : r,

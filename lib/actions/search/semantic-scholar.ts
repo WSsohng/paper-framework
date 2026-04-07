@@ -16,7 +16,7 @@ export interface FoundPaper {
 
 export type PaperSearchResult =
   | { success: true;  data: FoundPaper[]; total: number }
-  | { success: false; error: string }
+  | { success: false; error: string; retryAfterSecs?: number }
 
 const SS_BASE = 'https://api.semanticscholar.org/graph/v1'
 const FIELDS  = 'title,authors,year,abstract,externalIds,citationCount,publicationVenue,publicationTypes,openAccessPdf,url'
@@ -56,13 +56,15 @@ export async function searchPapers(
       next: { revalidate: 300 },
     })
 
-    if (!res.ok) {
-      if (res.status === 429) {
-        // 클라이언트가 카운트다운 후 재시도할 수 있도록 즉시 반환
-        return { success: false, error: 'RATE_LIMIT' }
+      if (!res.ok) {
+        if (res.status === 429) {
+          // Retry-After 헤더로 실제 대기 시간 파악
+          const retryAfter = res.headers.get('Retry-After') ?? res.headers.get('x-ratelimit-reset-after')
+          const retryAfterSecs = retryAfter ? Math.ceil(parseFloat(retryAfter)) : 60
+          return { success: false, error: 'RATE_LIMIT', retryAfterSecs }
+        }
+        return { success: false, error: `Semantic Scholar 오류: HTTP ${res.status}` }
       }
-      return { success: false, error: `Semantic Scholar 오류: HTTP ${res.status}` }
-    }
 
     const json = await res.json() as {
       data:  SemanticScholarPaper[]
