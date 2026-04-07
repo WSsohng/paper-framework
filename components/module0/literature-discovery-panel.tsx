@@ -6,6 +6,9 @@ import {
   generateResearchQuestions,
   type ResearchQuestion,
   type SearchHistoryItem,
+  type CoverageMap,
+  DOMAIN_LABEL,
+  DOMAIN_COLOR,
 } from '@/lib/actions/ai/research-questions'
 import { searchPapers, type FoundPaper } from '@/lib/actions/search/search-papers'
 import { planSearch, type SearchPlan } from '@/lib/actions/ai/plan-search'
@@ -144,6 +147,9 @@ export function LiteratureDiscoveryPanel({
   // roundsRef: stale closure 방지 — rounds 최신값 항상 참조
   const roundsRef                       = useRef<SearchRound[]>([])
 
+  // Coverage map (질문 생성 후 커버리지 상태)
+  const [coverage, setCoverage]         = useState<CoverageMap | null>(null)
+
   // Topics (right panel)
   const [topics, setTopics]             = useState<TopicRecommendation[]>([])
   const [loadingTopics, setLoadingTopics] = useState(false)
@@ -161,6 +167,7 @@ export function LiteratureDiscoveryPanel({
     setCustomQ('')
     setCustomTopic('')
     setIsFollowUp(false)
+    setCoverage(null)
     setDbLoaded(false)
     savedIdsRef.current = new Set()
 
@@ -205,6 +212,7 @@ export function LiteratureDiscoveryPanel({
     } else {
       setQuestions(result.data)
       setIsFollowUp(rounds.length > 0)
+      setCoverage(result.coverage ?? null)
     }
     setLoadingQ(false)
   }, [intent, projectName, rounds])
@@ -552,6 +560,14 @@ export function LiteratureDiscoveryPanel({
                 </span>
               </>
             )}
+            {coverage?.thin_areas && coverage.thin_areas.length > 0 && (
+              <>
+                <span>·</span>
+                <span className="text-rose-500/70">
+                  보완 필요: {coverage.thin_areas.map(d => DOMAIN_LABEL[d]).join(', ')}
+                </span>
+              </>
+            )}
             {poolReady && (
               <>
                 <span>·</span>
@@ -607,6 +623,29 @@ export function LiteratureDiscoveryPanel({
         {/* Questions list */}
         {hasQuestions && (
           <div className="space-y-2">
+            {/* 커버리지 요약 (후속 질문일 때) */}
+            {coverage && isFollowUp && (
+              <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3 space-y-2">
+                <p className="text-xs font-medium text-zinc-400">탐색 커버리지 현황</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(['tech', 'application', 'intersection', 'methodology', 'frontier'] as const).map((domain) => {
+                    const isThin = coverage.thin_areas.includes(domain)
+                    return (
+                      <span key={domain} className={`rounded px-2 py-0.5 text-[10px] font-medium ${
+                        isThin
+                          ? 'bg-rose-900/40 text-rose-300 ring-1 ring-rose-700/40'
+                          : 'bg-zinc-800 text-zinc-500'
+                      }`}>
+                        {DOMAIN_LABEL[domain]}
+                        {isThin ? ' ⚠' : ' ✓'}
+                      </span>
+                    )
+                  })}
+                </div>
+                <p className="text-[11px] text-zinc-600 leading-snug">{coverage.summary}</p>
+              </div>
+            )}
+
             <p className="text-xs font-medium text-zinc-500">
               {isFollowUp ? '후속 연구 질문' : '연구 질문 선택'}{' '}
               <span className="text-zinc-700">— 하나를 클릭하거나 직접 입력하세요</span>
@@ -614,6 +653,7 @@ export function LiteratureDiscoveryPanel({
 
             {questions.map((q, i) => {
               const isPending = pendingQ?.question === q.question
+              const isThinDomain = coverage?.thin_areas.includes(q.domain)
               return (
                 <div key={q.question}>
                   <button
@@ -628,7 +668,9 @@ export function LiteratureDiscoveryPanel({
                     className={`group w-full flex items-start gap-3 rounded-lg border px-4 py-3.5 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                       isPending
                         ? 'border-indigo-500/60 bg-indigo-900/20'
-                        : 'border-zinc-800 bg-zinc-900 hover:border-indigo-500/50 hover:bg-indigo-900/10'
+                        : isThinDomain
+                          ? 'border-rose-800/40 bg-zinc-900 hover:border-rose-500/50 hover:bg-rose-900/5'
+                          : 'border-zinc-800 bg-zinc-900 hover:border-indigo-500/50 hover:bg-indigo-900/10'
                     }`}
                   >
                     <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors ${
@@ -639,7 +681,18 @@ export function LiteratureDiscoveryPanel({
                       {i + 1}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                        {/* 도메인 뱃지 */}
+                        {'domain' in q && (
+                          <span className={`rounded px-1.5 py-0.5 text-[9px] font-semibold ${DOMAIN_COLOR[q.domain as keyof typeof DOMAIN_COLOR] ?? 'bg-zinc-800 text-zinc-500'}`}>
+                            {DOMAIN_LABEL[q.domain as keyof typeof DOMAIN_LABEL] ?? q.domain}
+                          </span>
+                        )}
+                        {isThinDomain && (
+                          <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold bg-rose-900/30 text-rose-400">
+                            보완 필요
+                          </span>
+                        )}
                         <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
                           isPending
                             ? 'bg-indigo-800/60 text-indigo-200'
@@ -656,6 +709,11 @@ export function LiteratureDiscoveryPanel({
                       <p className="mt-1 text-xs text-zinc-600 group-hover:text-zinc-500 leading-snug">
                         {q.focus}
                       </p>
+                      {'coverage_note' in q && q.coverage_note && (
+                        <p className="mt-0.5 text-[10px] text-zinc-700 leading-snug italic">
+                          → {q.coverage_note}
+                        </p>
+                      )}
                     </div>
                     <span className={`mt-1 shrink-0 text-xs transition-colors ${
                       isPending ? 'text-indigo-400' : 'text-zinc-700 group-hover:text-indigo-400'
