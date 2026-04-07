@@ -5,15 +5,14 @@ import { createClient } from '@/lib/supabase/server'
 import type { ActionResult, Track, TrackInput } from '@/lib/types'
 
 export async function getTracks(projectId?: string | null): Promise<Track[]> {
+  if (!projectId) return []
   const supabase = await createClient()
-  let query = supabase
+  const { data, error } = await supabase
     .from('tracks')
     .select('*, papers(count), project:projects(id, name), parent_track:tracks!parent_track_id(id, name)')
+    .eq('project_id', projectId)
     .order('created_at', { ascending: false })
 
-  if (projectId) query = query.eq('project_id', projectId)
-
-  const { data, error } = await query
   if (error) throw new Error(error.message)
 
   return (data ?? []).map((t) => ({

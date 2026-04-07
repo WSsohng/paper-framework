@@ -7,6 +7,8 @@ import type { ActionResult, Hypothesis, HypothesisInput } from '@/lib/types'
 export async function getHypotheses(
   opts: { trackId?: string; projectId?: string } = {},
 ): Promise<Hypothesis[]> {
+  // projectId나 trackId 없으면 전체 반환하지 않음
+  if (!opts.projectId && !opts.trackId) return []
   const supabase = await createClient()
 
   // When filtering by project, resolve track IDs first

@@ -7,15 +7,14 @@ import type { ActionResult, Asset, AssetInput } from '@/lib/types'
 const ASSET_SELECT = '*, project:projects(id, name), reference_paper:reference_papers(id, title, year, journal, tier, concepts)'
 
 export async function getAssets(projectId?: string | null): Promise<Asset[]> {
+  if (!projectId) return []
   const supabase = await createClient()
-  let query = supabase
+  const { data, error } = await supabase
     .from('assets')
     .select(ASSET_SELECT)
+    .eq('project_id', projectId)
     .order('created_at', { ascending: false })
 
-  if (projectId) query = query.eq('project_id', projectId)
-
-  const { data, error } = await query
   if (error) throw new Error(error.message)
   return data ?? []
 }

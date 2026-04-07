@@ -7,6 +7,7 @@ import type { ActionResult, Figure, FigureInput } from '@/lib/types'
 export async function getFigures(
   opts: { trackId?: string; projectId?: string } = {},
 ): Promise<Figure[]> {
+  if (!opts.projectId && !opts.trackId) return []
   const supabase = await createClient()
 
   let trackIds: string[] | null = null

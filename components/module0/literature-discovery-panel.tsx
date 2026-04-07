@@ -146,13 +146,22 @@ export function LiteratureDiscoveryPanel({
   const [customTopic, setCustomTopic]   = useState('')
   const [creatingTrack, setCreatingTrack] = useState(false)
 
-  // ── DB: 마운트 시 이전 라운드 복원 ─────────────────────
+  // ── DB: 프로젝트 변경 시 state 초기화 + 라운드 재로드 ──
   useEffect(() => {
+    // 이전 프로젝트 데이터 완전 초기화
+    setRounds([])
+    setQuestions([])
+    setTopics([])
+    setSessionSaved([])
+    setCustomQ('')
+    setCustomTopic('')
+    setIsFollowUp(false)
+    setDbLoaded(false)
+    savedIdsRef.current = new Set()
+
     getDiscoveryRounds(projectId).then((rows) => {
-      if (rows.length > 0) {
-        setRounds(rows.map(rowToRound))
-        setIsFollowUp(true)
-      }
+      setRounds(rows.map(rowToRound))
+      setIsFollowUp(rows.length > 0)
       setDbLoaded(true)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps

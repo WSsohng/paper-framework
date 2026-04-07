@@ -7,6 +7,8 @@ import type { ActionResult, Review, ReviewInput } from '@/lib/types'
 export async function getReviews(
   opts: { draftId?: string; trackId?: string; projectId?: string } = {},
 ): Promise<Review[]> {
+  // 모든 식별자가 없으면 전체 반환 방지
+  if (!opts.draftId && !opts.trackId && !opts.projectId) return []
   const supabase = await createClient()
 
   let trackIds: string[] | null = null

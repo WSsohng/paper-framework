@@ -5,15 +5,14 @@ import { createClient } from '@/lib/supabase/server'
 import type { ActionResult, Journal, JournalInput } from '@/lib/types'
 
 export async function getJournals(projectId?: string | null): Promise<Journal[]> {
+  if (!projectId) return []
   const supabase = await createClient()
-  let query = supabase
+  const { data, error } = await supabase
     .from('journals')
     .select('*, project:projects(id, name)')
+    .eq('project_id', projectId)
     .order('created_at', { ascending: false })
 
-  if (projectId) query = query.eq('project_id', projectId)
-
-  const { data, error } = await query
   if (error) throw new Error(error.message)
   return data ?? []
 }

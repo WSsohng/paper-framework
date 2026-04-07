@@ -7,6 +7,7 @@ import type { ActionResult, Draft, DraftInput } from '@/lib/types'
 export async function getDrafts(
   opts: { trackId?: string; projectId?: string } = {},
 ): Promise<Draft[]> {
+  if (!opts.projectId && !opts.trackId) return []
   const supabase = await createClient()
 
   let trackIds: string[] | null = null
