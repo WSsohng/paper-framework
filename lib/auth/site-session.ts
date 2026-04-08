@@ -5,10 +5,19 @@ export const SITE_SESSION_COOKIE = 'af_session'
 /** JWT signing key — set AUTH_SECRET in production (32+ chars recommended). */
 export function getAuthSecretKey(): Uint8Array {
   const raw = process.env.AUTH_SECRET
+
+  if (process.env.NODE_ENV === 'production' && (!raw || raw.length < 16)) {
+    throw new Error(
+      '[PaperFactory] AUTH_SECRET 환경변수가 설정되지 않았습니다. ' +
+      '프로덕션 배포 시 최소 16자 이상의 AUTH_SECRET을 설정하세요.',
+    )
+  }
+
   if (raw && raw.length >= 16) {
     return new TextEncoder().encode(raw)
   }
-  // Dev fallback only — never use in production without AUTH_SECRET
+
+  // 개발 환경 전용 fallback — 프로덕션에서는 위 throw로 차단됨
   return new TextEncoder().encode(
     'dev-only-insecure-key-set-AUTH_SECRET-in-production',
   )

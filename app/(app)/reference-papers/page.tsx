@@ -17,6 +17,7 @@ import { ModuleGuideBar } from '@/components/guide/module-guide-bar'
 import { RelevanceBadge } from '@/components/module0/relevance-badge'
 import { RelevanceTagButton } from '@/components/module0/relevance-tag-button'
 import { BatchRelevanceButton } from '@/components/module0/batch-relevance-button'
+import { BatchTierButton } from '@/components/module0/batch-tier-button'
 import { TrackMonitorButton } from '@/components/module0/track-monitor-button'
 import { IntentStaleBanner } from '@/components/module0/intent-stale-banner'
 import type { TrackRelevance } from '@/lib/types'
@@ -71,7 +72,8 @@ export default async function ReferencePapersPage({
   const tier1Papers  = papers.filter((p) => p.tier === 1)
   const tier2Papers  = papers.filter((p) => p.tier === 2)
   const tier3Papers  = papers.filter((p) => p.tier === 3)
-  const unanalyzedCount       = papers.filter((p) => !p.concepts || p.concepts.length === 0).length
+  const unanalyzedCount = papers.filter((p) => !p.concepts || p.concepts.length === 0).length
+  const untieredCount   = papers.filter((p) => p.tier == null).length
 
   // intent 변경 이후 재분석이 안 된 논문 수
   const staleCount = project?.intent_updated_at
@@ -225,15 +227,25 @@ export default async function ReferencePapersPage({
                       {PAPER_TIER_DESC[t].desc}
                     </span>
                   ))}
-                  <span className="text-xs text-zinc-700">— 카드에서 직접 설정</span>
+                  <span className="text-xs text-zinc-700">— AI 일괄 분류 후 카드에서 수정 가능</span>
                 </div>
-                  {project?.research_intent && (
-                    <BatchAnalyzeButton
-                      projectId={selectedProjectId}
-                      researchIntent={project.research_intent}
-                      unanalyzedCount={unanalyzedCount}
-                    />
-                  )}
+                  <div className="flex items-center gap-2">
+                    {project?.research_intent && untieredCount > 0 && (
+                      <BatchTierButton
+                        projectId={selectedProjectId}
+                        researchIntent={project.research_intent}
+                        untieredCount={untieredCount}
+                        totalCount={papers.length}
+                      />
+                    )}
+                    {project?.research_intent && (
+                      <BatchAnalyzeButton
+                        projectId={selectedProjectId}
+                        researchIntent={project.research_intent}
+                        unanalyzedCount={unanalyzedCount}
+                      />
+                    )}
+                  </div>
                 </div>
 
                 {/* 트랙 선택 시: R레벨 범례 + 일괄 R태깅 + 트랙 모니터링 */}

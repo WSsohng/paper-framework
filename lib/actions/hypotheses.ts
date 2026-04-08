@@ -52,12 +52,14 @@ export async function createHypothesis(input: HypothesisInput): Promise<ActionRe
   const { data, error } = await supabase
     .from('hypotheses')
     .insert({
-      track_id:  input.track_id ?? null,
-      title:     input.title,
-      statement: input.statement ?? null,
-      rationale: input.rationale ?? null,
-      status:    input.status ?? 'draft',
-      tags:      input.tags ?? [],
+      track_id:     input.track_id ?? null,
+      title:        input.title,
+      statement:    input.statement    ?? null,
+      rationale:    input.rationale    ?? null,
+      methodology:  input.methodology  ?? null,
+      result_notes: input.result_notes ?? null,
+      status:       input.status       ?? 'draft',
+      tags:         input.tags         ?? [],
     })
     .select('*, track:tracks(id,name,color)')
     .single()

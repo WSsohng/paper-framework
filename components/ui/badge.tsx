@@ -98,6 +98,7 @@ const assetTypeConfig: Record<AssetType, { label: string; className: string }> =
   data:      { label: '데이터',    className: 'bg-teal-950 text-teal-400' },
   reference: { label: '참고문헌',  className: 'bg-indigo-950 text-indigo-400' },
   note:      { label: '메모',      className: 'bg-zinc-800 text-zinc-400' },
+  idea:      { label: '아이디어',  className: 'bg-purple-950 text-purple-400' },
 }
 
 export function AssetTypeBadge({ type }: { type: AssetType }) {

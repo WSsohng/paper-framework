@@ -26,6 +26,7 @@ import {
   saveDiscoveryRound,
   updateRoundSavedIds,
   updateRoundInsight,
+  updateRoundShowUnrelated,
   deleteDiscoveryRound,
   clearDiscoveryRounds,
   type DiscoveryRoundRow,
@@ -868,13 +869,15 @@ export function LiteratureDiscoveryPanel({
                 ),
               )
             }
-            onToggleUnrelated={() =>
+            onToggleUnrelated={() => {
+              const next = !round.showUnrelated
               setRounds((prev) =>
                 prev.map((r) =>
-                  r.id === round.id ? { ...r, showUnrelated: !r.showUnrelated } : r,
+                  r.id === round.id ? { ...r, showUnrelated: next } : r,
                 ),
               )
-            }
+              updateRoundShowUnrelated(round.id, next)
+            }}
             onRetry={() => {
               // 기존 라운드 ID 재사용 — 새 라운드 추가 없이 재검색
               runSearchPhases(round.id, round.question)

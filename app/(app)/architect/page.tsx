@@ -5,6 +5,7 @@ import { getSelectedProjectId } from '@/lib/selected-project'
 import { getSelectedTrackId } from '@/lib/selected-track'
 import { HypothesisStatusBadge, TagBadge } from '@/components/ui/badge'
 import { HypothesisDialog } from '@/components/module3/hypothesis-dialog'
+import { HypothesisAiPanel } from '@/components/module3/hypothesis-ai-panel'
 import { TrackContextBanner } from '@/components/layout/track-context-banner'
 import type { HypothesisStatus } from '@/lib/types'
 
@@ -19,7 +20,11 @@ export default async function ArchitectPage() {
     getSelectedTrackId(),
   ])
 
-  const selectedTrack = tracks.find((t) => t.id === selectedTrackId) ?? null
+  const selectedTrack    = tracks.find((t) => t.id === selectedTrackId) ?? null
+  // AI 가설 생성에 사용할 research_intent: 트랙 선택 시 트랙 의도, 없으면 프로젝트 트랙 중 첫 번째
+  const aiResearchIntent = selectedTrack?.research_intent
+    ?? tracks.find((t) => t.research_intent)?.research_intent
+    ?? null
 
   const hypotheses = await getHypotheses(
     selectedTrack
@@ -39,14 +44,24 @@ export default async function ArchitectPage() {
           <h1 className="text-lg font-semibold text-zinc-100">논증·가설</h1>
           <p className="mt-0.5 text-sm text-zinc-500">M3 · Hypothesis — 가설 정의 및 논증 구조화</p>
         </div>
-        <HypothesisDialog
-          tracks={tracks}
-          trigger={
-            <button className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors">
-              + 새 가설
-            </button>
-          }
-        />
+        <div className="flex items-center gap-2">
+          {selectedProjectId && (
+            <HypothesisAiPanel
+              projectId={selectedProjectId}
+              trackId={selectedTrack?.id ?? null}
+              trackName={selectedTrack?.name ?? null}
+              researchIntent={aiResearchIntent}
+            />
+          )}
+          <HypothesisDialog
+            tracks={tracks}
+            trigger={
+              <button className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors">
+                + 새 가설
+              </button>
+            }
+          />
+        </div>
       </div>
 
       <TrackContextBanner

@@ -26,6 +26,7 @@ export type AIFeature =
   | 'search_plan'
   | 'search_synthesis'
   | 'paper_verification'
+  | 'hypothesis_generation'
   | 'other'
 
 export interface AIMeta {
@@ -62,6 +63,7 @@ export async function generateJson<T>(
   opts?: {
     skipFrameworkProtocol?: boolean
     meta?: AIMeta
+    maxTokens?: number
   },
 ): Promise<T> {
   if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY === 'your-anthropic-api-key-here') {
@@ -69,7 +71,7 @@ export async function generateJson<T>(
   }
 
   const fullPrompt = opts?.skipFrameworkProtocol ? prompt : withFrameworkProtocol(prompt)
-  const { text, usage } = await callClaude(fullPrompt, temperature)
+  const { text, usage } = await callClaude(fullPrompt, temperature, opts?.maxTokens)
 
   if (opts?.meta) {
     logUsage({ ...usage, ...opts.meta }).catch(() => {})
@@ -86,6 +88,7 @@ const MAX_RETRIES  = 3
 async function callClaude(
   prompt: string,
   temperature: number,
+  maxTokens = 2048,
 ): Promise<{ text: string; usage: TokenUsage }> {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
@@ -94,7 +97,7 @@ async function callClaude(
     try {
       const message = await client.messages.create({
         model:      CLAUDE_MODEL,
-        max_tokens: 2048,
+        max_tokens: maxTokens,
         temperature,
         messages:   [{ role: 'user', content: prompt }],
       })
@@ -146,15 +149,23 @@ async function logUsage(params: TokenUsage & AIMeta): Promise<void> {
 // ── JSON parser ───────────────────────────────────────────
 
 function parseJson<T>(text: string): T {
-  const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/)
+  // 코드 펜스 제거 (non-greedy가 긴 JSON을 못잡는 경우 대비해 greedy 우선 시도)
+  const codeBlock = text.match(/```(?:json)?\s*([\s\S]+?)```/) ??
+                    text.match(/```(?:json)?\s*([\s\S]+)$/)
   const raw = codeBlock ? codeBlock[1].trim() : text.trim()
 
   try {
     return JSON.parse(raw) as T
   } catch {
-    const innerMatch = raw.match(/\{[\s\S]*"(?:data|items|results|questions|topics|keywords)":\s*(\[[\s\S]*?\])\s*\}/)
+    // 1) 배열이 객체 키 안에 래핑된 경우: { "journals": [...] } 등 임의 키 허용
+    const innerMatch = raw.match(/"(?:\w+)":\s*(\[[\s\S]*\])/)
     if (innerMatch) {
-      return JSON.parse(innerMatch[1]) as T
+      try { return JSON.parse(innerMatch[1]) as T } catch { /* fall through */ }
+    }
+    // 2) 배열만 추출 시도
+    const arrayMatch = raw.match(/(\[[\s\S]*\])/)
+    if (arrayMatch) {
+      try { return JSON.parse(arrayMatch[1]) as T } catch { /* fall through */ }
     }
     throw new Error(`JSON 파싱 실패: ${raw.slice(0, 200)}`)
   }

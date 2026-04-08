@@ -36,12 +36,14 @@ export function HypothesisForm({ hypothesis, tracks = [], onSuccess, onCancel }:
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
-    const input: HypothesisInput = {
-      track_id:  (fd.get('track_id') as string) || null,
-      title:     fd.get('title') as string,
-      statement: (fd.get('statement') as string) || undefined,
-      rationale: (fd.get('rationale') as string) || undefined,
-      status:    (fd.get('status') as HypothesisStatus) || 'draft',
+      const input: HypothesisInput = {
+      track_id:     (fd.get('track_id') as string) || null,
+      title:        fd.get('title') as string,
+      statement:    (fd.get('statement') as string) || undefined,
+      rationale:    (fd.get('rationale') as string) || undefined,
+      methodology:  (fd.get('methodology') as string) || null,
+      result_notes: (fd.get('result_notes') as string) || null,
+      status:       (fd.get('status') as HypothesisStatus) || 'draft',
       tags,
     }
     startTransition(async () => {
@@ -86,6 +88,34 @@ export function HypothesisForm({ hypothesis, tracks = [], onSuccess, onCancel }:
       <div>
         <label className="block text-xs font-medium text-zinc-400 mb-1">근거 (Rationale)</label>
         <textarea name="rationale" defaultValue={hypothesis?.rationale ?? ''} rows={3} placeholder="왜 이를 믿는가?" className={`${f} resize-none`} />
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-zinc-400 mb-1">
+          증명 방법론
+          <span className="ml-1.5 text-zinc-600 font-normal">(AI 제안 · 직접 수정 가능)</span>
+        </label>
+        <textarea
+          name="methodology"
+          defaultValue={hypothesis?.methodology ?? ''}
+          rows={3}
+          placeholder="어떤 실험·측정·비교를 통해 이 가설을 검증할 것인가?"
+          className={`${f} resize-none`}
+        />
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-zinc-400 mb-1">
+          실험 결과 기록
+          <span className="ml-1.5 text-zinc-600 font-normal">(실험 후 작성)</span>
+        </label>
+        <textarea
+          name="result_notes"
+          defaultValue={hypothesis?.result_notes ?? ''}
+          rows={3}
+          placeholder="실험을 마친 후 결과·수치·관찰 내용을 기록하세요."
+          className={`${f} resize-none`}
+        />
       </div>
 
       <div>

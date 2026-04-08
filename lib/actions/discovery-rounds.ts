@@ -99,6 +99,19 @@ export async function updateRoundInsight(
     .eq('id', roundId)
 }
 
+// ── Update: show_unrelated 토글 ───────────────────────────
+
+export async function updateRoundShowUnrelated(
+  roundId: string,
+  show:    boolean,
+): Promise<void> {
+  const supabase = await createClient()
+  await supabase
+    .from('discovery_rounds')
+    .update({ show_unrelated: show })
+    .eq('id', roundId)
+}
+
 // ── Delete: single round ───────────────────────────────────
 
 export async function deleteDiscoveryRound(roundId: string): Promise<void> {

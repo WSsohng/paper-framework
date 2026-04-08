@@ -3,7 +3,7 @@
 // ============================================================
 
 // ── M0: 검색 계획 (plan-search.ts 타입 재export) ──────────
-export type { SearchQuery, SearchQueryType, SearchPlan } from '@/lib/actions/ai/plan-search'
+export type { SearchQuery, SearchQueryType, SearchPlan } from '@/lib/types/search-plan'
 
 // ── Project (최상위) ──────────────────────────────────────
 
@@ -292,7 +292,7 @@ export interface JournalInput {
 
 // ── Module 2: Asset Library (프로젝트 공유) ───────────────
 
-export type AssetType = 'quote' | 'figure' | 'table' | 'data' | 'reference' | 'note'
+export type AssetType = 'quote' | 'figure' | 'table' | 'data' | 'reference' | 'note' | 'idea'
 
 /**
  * 논문 섹션 — AI 초고 생성 시 컨텍스트로 활용
@@ -353,6 +353,10 @@ export interface Hypothesis {
   title: string
   statement: string | null
   rationale: string | null
+  /** AI가 제안하는 증명 방법론 (사람이 편집 가능) */
+  methodology: string | null
+  /** 실험 후 인간이 직접 기록하는 결과 노트 */
+  result_notes: string | null
   status: HypothesisStatus
   tags: string[]
   created_at: string
@@ -365,6 +369,8 @@ export interface HypothesisInput {
   title: string
   statement?: string
   rationale?: string
+  methodology?: string | null
+  result_notes?: string | null
   status?: HypothesisStatus
   tags?: string[]
 }

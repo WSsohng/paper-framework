@@ -12,6 +12,7 @@ const TYPE_OPTIONS: { value: AssetType; label: string }[] = [
   { value: 'data',     label: '데이터' },
   { value: 'reference',label: '참고문헌' },
   { value: 'note',     label: '메모'   },
+  { value: 'idea',     label: '아이디어' },
 ]
 
 const SECTION_OPTIONS: { value: AssetSection; label: string }[] = (

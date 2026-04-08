@@ -9,10 +9,17 @@ interface Props {
   projectId?:       string | null
   referencePapers?: Pick<ReferencePaper, 'id' | 'title' | 'year' | 'tier'>[]
   trigger:          React.ReactNode
+  onSuccess?:       () => void
 }
 
-export function AssetDialog({ asset, projectId, referencePapers = [], trigger }: Props) {
+export function AssetDialog({ asset, projectId, referencePapers = [], trigger, onSuccess }: Props) {
   const [open, setOpen] = useState(false)
+
+  function handleSuccess() {
+    setOpen(false)
+    onSuccess?.()
+  }
+
   return (
     <>
       <span onClick={() => setOpen(true)} className="cursor-pointer">{trigger}</span>
@@ -25,7 +32,7 @@ export function AssetDialog({ asset, projectId, referencePapers = [], trigger }:
               asset={asset}
               projectId={projectId}
               referencePapers={referencePapers}
-              onSuccess={() => setOpen(false)}
+              onSuccess={handleSuccess}
               onCancel={() => setOpen(false)}
             />
           </div>

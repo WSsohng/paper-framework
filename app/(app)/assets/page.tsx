@@ -7,6 +7,7 @@ import { AssetDialog } from '@/components/module2/asset-dialog'
 import type { Asset, AssetSection, AssetType } from '@/lib/types'
 import { ASSET_SECTION_LABELS } from '@/lib/types'
 import { AssetInsightButton } from '@/components/module2/asset-insight-button'
+import { IdeaPad } from '@/components/module2/idea-pad'
 import { ModuleGuideBar } from '@/components/guide/module-guide-bar'
 import { ConceptChipList } from '@/components/ui/concept-chip'
 
@@ -14,7 +15,7 @@ export const metadata = { title: 'Asset Library — PaperFactory' }
 
 const TYPE_ORDER: AssetType[] = ['quote', 'reference', 'figure', 'table', 'data', 'note']
 const TYPE_LABELS: Record<AssetType, string> = {
-  quote: '인용구', reference: '참고문헌', figure: '그림', table: '표', data: '데이터', note: '메모',
+  quote: '인용구', reference: '참고문헌', figure: '그림', table: '표', data: '데이터', note: '메모', idea: '아이디어',
 }
 
 const SECTION_ORDER: (AssetSection | '__none')[] = [
@@ -39,17 +40,21 @@ export default async function AssetsPage({
     selectedProjectId ? getReferencePapers(selectedProjectId) : Promise.resolve([]),
   ])
 
-  // 섹션별 그루핑
+  // 아이디어는 IdeaPad에서 별도 관리 — 나머지 자산만 목록에 표시
+  const ideaAssets       = assets.filter((a) => a.type === 'idea')
+  const nonIdeaAssets    = assets.filter((a) => a.type !== 'idea')
+
+  // 섹션별 그루핑 (아이디어 제외)
   const bySection = SECTION_ORDER.reduce<Record<string, Asset[]>>((acc, s) => {
-    acc[s] = assets.filter((a) =>
+    acc[s] = nonIdeaAssets.filter((a) =>
       s === '__none' ? !a.paper_section : a.paper_section === s,
     )
     return acc
   }, {})
 
-  // 유형별 그루핑
+  // 유형별 그루핑 (아이디어 제외)
   const byType = TYPE_ORDER.reduce<Record<string, Asset[]>>((acc, t) => {
-    acc[t] = assets.filter((a) => a.type === t)
+    acc[t] = nonIdeaAssets.filter((a) => a.type === t)
     return acc
   }, {})
 
@@ -86,9 +91,9 @@ export default async function AssetsPage({
     tier:     p.tier,
   }))
 
-  // 연결된 참고문헌 수
-  const linkedCount = assets.filter((a) => a.reference_paper_id).length
-  const sectionedCount = assets.filter((a) => a.paper_section).length
+  // 연결된 참고문헌 수 (아이디어 제외)
+  const linkedCount    = nonIdeaAssets.filter((a) => a.reference_paper_id).length
+  const sectionedCount = nonIdeaAssets.filter((a) => a.paper_section).length
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
@@ -97,7 +102,7 @@ export default async function AssetsPage({
         <div>
           <h1 className="text-lg font-semibold text-zinc-100">연구 자산</h1>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-            <span>M2 · Research Assets · {assets.length}개 자산</span>
+            <span>M2 · Research Assets · {nonIdeaAssets.length}개 자산</span>
             {linkedCount > 0 && (
               <span className="text-indigo-400">· 출처 연결 {linkedCount}개</span>
             )}
@@ -199,12 +204,21 @@ export default async function AssetsPage({
         </div>
       )}
 
+      {/* 아이디어 메모장 */}
+      {selectedProjectId && (
+        <IdeaPad
+          projectId={selectedProjectId}
+          initialIdeas={ideaAssets}
+          refPaperPickList={refPaperPickList}
+        />
+      )}
+
       {/* M2 가이드 바 */}
       <ModuleGuideBar
         moduleTag="M2"
         activeStepIndex={
-          assets.length === 0  ? 0 :
-          assets.length < 5    ? 3 :
+          nonIdeaAssets.length === 0 ? 0 :
+          nonIdeaAssets.length < 5   ? 3 :
           undefined
         }
       />
@@ -237,7 +251,7 @@ export default async function AssetsPage({
       </div>
 
       <div className="flex-1 px-8 py-6">
-        {assets.length === 0 ? (
+        {nonIdeaAssets.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center gap-3">
             <p className="text-sm text-zinc-500">자산이 없습니다.</p>
             <p className="text-xs text-zinc-700">

@@ -75,6 +75,7 @@ Order by fit_score descending. No markdown, no explanation — pure JSON only.`
     const list = await generateJson<JournalRecommendation[]>(prompt, 0.4, {
       skipFrameworkProtocol: true,
       meta: { feature: 'journal_recommendation' },
+      maxTokens: 4096,
     })
     if (!Array.isArray(list) || !list.length) {
       return { success: false, error: 'AI가 추천 결과를 반환하지 않았습니다. 다시 시도해 주세요.' }
