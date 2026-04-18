@@ -71,6 +71,8 @@ export interface AssetsConfig {
   limit?:           number
   /** default: 300 */
   contentMaxChars?: number
+  /** 섹션 제목 override. 여러 번 호출 시 구분용 (기본: '연구 자산' / 'Research Assets'). */
+  title?:           string
 }
 
 export interface QuestionsConfig {
@@ -184,7 +186,7 @@ export async function buildContext(opts: {
 
       case 'assets': {
         if (!opts.projectId) { raw.push(null); break }
-        const { types, limit = 8, contentMaxChars = 300 } = p.config
+        const { types, limit = 8, contentMaxChars = 300, title: titleOverride } = p.config
         let q = supabase
           .from('assets')
           .select('title, content, type')
@@ -202,7 +204,11 @@ export async function buildContext(opts: {
         const body = assets
           .map((a) => `[${a.type}] ${a.title}: ${(a.content ?? '').slice(0, contentMaxChars)}`)
           .join('\n')
-        raw.push({ id: 'assets', title: TITLES.assets[lang], body })
+        raw.push({
+          id:    'assets',
+          title: titleOverride ?? TITLES.assets[lang],
+          body,
+        })
         break
       }
 
@@ -264,15 +270,20 @@ export async function buildContext(opts: {
     }
   }
 
-  // 정렬: SECTION_ORDER 먼저, 그 다음 custom 순서
+  // 정렬: SECTION_ORDER 순서대로 (같은 id 여러 개 있으면 등록 순서 유지).
+  // 그 뒤에 custom 섹션을 등록 순서대로.
   const fixed: PromptSection[] = []
+  const placed = new Set<PromptSection>()
   for (const id of SECTION_ORDER) {
-    const s = raw.find((r): r is PromptSection => !!r && r.id === id)
-    if (s) fixed.push(s)
+    for (const r of raw) {
+      if (r && r.id === id) {
+        fixed.push(r)
+        placed.add(r)
+      }
+    }
   }
   const customs = raw.filter(
-    (r): r is PromptSection =>
-      !!r && !(SECTION_ORDER as readonly string[]).includes(r.id),
+    (r): r is PromptSection => !!r && !placed.has(r),
   )
   const sections = [...fixed, ...customs]
 
