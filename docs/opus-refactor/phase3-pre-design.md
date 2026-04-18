@@ -209,8 +209,36 @@ AI_BUDGET_BYPASS=1 npm run dev
 
 ---
 
-## 9. Phase 3-pre 확정 게이트 질문
+## 9. Phase 3-pre 확정 게이트 결정 (2026-04-18)
 
-1. **월 한도 기본값**: 현재 디폴트는 "설정 없음=체크 스킵". 신규 프로젝트 생성 시 자동으로 행을 insert해 줄까? (Y/N)
-2. **경고 로그 채널**: 현재 `console.warn` (서버 stdout). 별도 테이블 기록이 필요한가? → Phase 3-full 범위.
-3. **Phase 2A 선행 조건**: 이 경량판만으로 Phase 2A 착수 허용? 아니면 Phase 3-full 까지 완료 후?
+| # | 질문 | 결정 | 반영 |
+|---|---|---|---|
+| Q1 | 신규 프로젝트 생성 시 `ai_budgets` 기본 행 자동 insert? | **Yes** | `createProject` 에 기본 $10, warning=80, hard_limit=false 자동 insert. `AI_BUDGET_DEFAULT_LIMIT_USD` env 로 조정 가능 |
+| Q2 | 경고/초과 이벤트를 DB에도 기록? | **Yes** | `migration-v17.sql` 로 `ai_budget_events` 추가. `enforceBudget` 에서 warn/exceed/blocked 각각 insert |
+| Q3 | 이 경량판으로 Phase 2A 착수 허용? | **Yes** | 3-pre 병합 직후 Phase 2A 착수. Phase 3-full 은 Phase 2A 이후 |
+
+### Q1 상세 — 자동 insert 기본값
+
+- `monthly_limit_usd` : `process.env.AI_BUDGET_DEFAULT_LIMIT_USD` 가 있으면 그 값, 없으면 **$10**
+- `warning_threshold_pct` : 80
+- `hard_limit_enabled` : **false** (안전 기본값 — 경고만, 차단 안 함)
+- insert 실패 시 `console.warn` 만 남기고 프로젝트 생성은 성공 처리 (가용성 우선)
+- 기존 프로젝트에는 소급 적용 안 함 — 필요하면 수동 SQL
+
+### Q2 상세 — 이벤트 테이블 스키마
+
+- 테이블: `ai_budget_events` (`migration-v17.sql`)
+- 컬럼: `id`, `project_id`, `feature`, `event_type`, `limit_usd`, `current_usd`, `estimate_usd`, `projected_usd`, `utilization_pct`, `created_at`
+- `event_type`: `warn` / `exceed` / `blocked`
+- 인덱스: `(project_id, created_at desc)` — 대시보드 조회 대비
+- RLS: `allow_all_ai_budget_events` (개발 단계)
+- `enforceBudget()` 에서 `logBudgetEvent()` 호출 (fire-and-forget — 로깅 실패가 AI 호출 막지 않음)
+- 기록 시점:
+  - utilization > warningPct (warn)
+  - utilization > 100 + hardLimit=false (exceed, 호출은 진행)
+  - utilization > 100 + hardLimit=true (blocked, throw 직전)
+
+### Q3 상세 — 후속 Phase
+
+- Phase 3-pre 병합 완료 → 바로 **Phase 2A(프롬프트 빌더)** 착수
+- Phase 3-full(예산 UI·기능별 quota·배너)은 Phase 2A 완료 후로 이동

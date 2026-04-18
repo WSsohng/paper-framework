@@ -480,6 +480,22 @@ export interface AiBudgetInput {
   hard_limit_enabled?:    boolean
 }
 
+/** Phase 3-pre Q2: 경고/초과/차단 이벤트 로그 한 건 */
+export type AiBudgetEventType = 'warn' | 'exceed' | 'blocked'
+
+export interface AiBudgetEvent {
+  id:              string
+  project_id:      string
+  feature:         string | null
+  event_type:      AiBudgetEventType
+  limit_usd:       number
+  current_usd:     number
+  estimate_usd:    number
+  projected_usd:   number
+  utilization_pct: number
+  created_at:      string
+}
+
 // ── server action result ───────────────────────────────────
 
 export type ActionResult<T = void> =

@@ -175,13 +175,41 @@ async function enforceBudget(
 
   if (status.exceed) {
     if (status.hardLimit) {
+      // 차단 이벤트를 먼저 기록(fire-and-forget) 후 throw.
+      logBudgetEvent(projectId, feature, 'blocked', status).catch(() => {})
       throw new BudgetExceededError(status)
     }
     console.warn(`[AI Budget EXCEED] ${tag} ${usage} — hard_limit_enabled=false, 계속 진행`)
+    logBudgetEvent(projectId, feature, 'exceed', status).catch(() => {})
     return
   }
   if (status.warn) {
     console.warn(`[AI Budget WARN] ${tag} ${usage}`)
+    logBudgetEvent(projectId, feature, 'warn', status).catch(() => {})
+  }
+}
+
+/** Phase 3-pre Q2: 경고/초과/차단 이벤트를 ai_budget_events 에 기록 */
+async function logBudgetEvent(
+  projectId: string,
+  feature: AIFeature | undefined,
+  eventType: 'warn' | 'exceed' | 'blocked',
+  status: BudgetStatus,
+): Promise<void> {
+  try {
+    const supabase = await createClient()
+    await supabase.from('ai_budget_events').insert({
+      project_id:      projectId,
+      feature:         feature ?? null,
+      event_type:      eventType,
+      limit_usd:       status.limitUsd ?? 0,
+      current_usd:     status.currentUsd,
+      estimate_usd:    status.estimateUsd,
+      projected_usd:   status.projectedUsd,
+      utilization_pct: status.utilizationPct,
+    })
+  } catch {
+    // 이벤트 로깅 실패는 무시 (비핵심)
   }
 }
 

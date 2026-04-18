@@ -43,6 +43,26 @@ export async function createProject(input: ProjectInput): Promise<ActionResult<P
 
   if (error) return { success: false, error: error.message }
 
+  // Phase 3-pre Q1: 프로젝트 생성 시 AI 예산 기본 행 자동 생성.
+  //   - 한도: env `AI_BUDGET_DEFAULT_LIMIT_USD` (기본 $10)
+  //   - warning=80%, hard_limit=false (경고만, 안전 기본값)
+  //   - 사용자는 이후 upsertAiBudget 으로 변경 가능
+  //   - 실패는 프로젝트 생성 흐름을 막지 않음 (로그만 남김)
+  const defaultLimit = Number(process.env.AI_BUDGET_DEFAULT_LIMIT_USD ?? '10')
+  if (Number.isFinite(defaultLimit) && defaultLimit > 0) {
+    const { error: budgetErr } = await supabase
+      .from('ai_budgets')
+      .insert({
+        project_id:            data.id,
+        monthly_limit_usd:     defaultLimit,
+        warning_threshold_pct: 80,
+        hard_limit_enabled:    false,
+      })
+    if (budgetErr) {
+      console.warn('[createProject] ai_budgets 기본 행 생성 실패:', budgetErr.message)
+    }
+  }
+
   revalidatePath('/', 'layout')
   return { success: true, data }
 }
