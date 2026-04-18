@@ -14,6 +14,7 @@ begin
 end;
 $$;
 
+drop trigger if exists reference_paper_tracks_updated_at on reference_paper_tracks;
 create trigger reference_paper_tracks_updated_at
   before update on reference_paper_tracks
   for each row execute function update_reference_paper_tracks_updated_at();
