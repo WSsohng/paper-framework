@@ -24,20 +24,6 @@ export async function getTrackRelevances(
   return data ?? []
 }
 
-/** 특정 논문의 모든 트랙 연관도 조회 (논문 상세에서 사용) */
-export async function getPaperRelevances(
-  paperId: string,
-): Promise<TrackRelevance[]> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('reference_paper_tracks')
-    .select('*')
-    .eq('reference_paper_id', paperId)
-
-  if (error) throw new Error(error.message)
-  return data ?? []
-}
-
 /** 논문-트랙 연관도 upsert (AI 또는 사용자) */
 export async function upsertTrackRelevance(
   input: TrackRelevanceInput,

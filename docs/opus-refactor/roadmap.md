@@ -229,7 +229,7 @@ function composePrompt(task: PromptTask, ctx: PromptContext): string
 | Phase | 상태 | 브랜치 | PR | 비고 |
 |---|---|---|---|---|
 | 0. 온보딩·진단 | **approved** | `refactor/phase-0-baseline` | (PR 대기) | 확정 게이트 통과 2026-04-18 |
-| 1. papers 통합 | ready | — | — | A안 확정 (아래 §Phase 0 결정) |
+| 1. papers 통합 | **review** | `refactor/phase-1-papers-consolidation` | (PR 대기) | A안 구현 완료, migration-v15 포함, tsc+build 통과 |
 | 2A. 프롬프트 빌더 | pending | — | — | Phase 3 경량판 선도입 조건 |
 | 2B. 플로우 맵 | pending | — | — | 2A와 병렬 가능 |
 | 3. 예산 거버넌스 | split | — | — | Phase 3-pre(경량) / 3-full 분리 |

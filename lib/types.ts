@@ -91,7 +91,6 @@ export interface Track {
   // joined
   project?: Pick<Project, 'id' | 'name'>
   parent_track?: Pick<Track, 'id' | 'name'>
-  paper_count?: number
 }
 
 export interface TrackInput {
@@ -110,40 +109,10 @@ export interface TrackInput {
   tags?: string[]
 }
 
-// ── Module 0: Paper (트랙별 분석 논문) ────────────────────
+// ── Module 0: Paper Status (공용 enum) ────────────────────
+// 2026-04-18 Phase 1: `papers` 테이블 제거. PaperStatus는 reference_papers가 계속 사용.
 
 export type PaperStatus = 'unread' | 'reading' | 'read' | 'key' | 'archived'
-
-export interface Paper {
-  id: string
-  track_id: string | null
-  title: string
-  authors: string[]
-  journal: string | null
-  year: number | null
-  doi: string | null
-  abstract: string | null
-  notes: string | null
-  status: PaperStatus
-  tags: string[]
-  created_at: string
-  updated_at: string
-  // joined
-  track?: Pick<Track, 'id' | 'name' | 'color'>
-}
-
-export interface PaperInput {
-  track_id?: string
-  title: string
-  authors?: string[]
-  journal?: string
-  year?: number
-  doi?: string
-  abstract?: string
-  notes?: string
-  status?: PaperStatus
-  tags?: string[]
-}
 
 // ── Module 0: Reference Paper (프로젝트 공유 참고문헌) ────
 

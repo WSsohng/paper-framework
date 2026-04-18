@@ -9,20 +9,24 @@ import Anthropic from '@anthropic-ai/sdk'
 import { withFrameworkProtocol } from '@/lib/framework-philosophy'
 import { createClient } from '@/lib/supabase/server'
 
-/** 기능 레이블 — UI 표시 및 비용 분류 기준 */
+/**
+ * 기능 레이블 — UI 표시 및 비용 분류 기준.
+ * Phase 1(2026-04-18): orphan feature 2건 제거
+ *   - `search_keywords`   (extract-keywords.ts, research-keywords.ts 파일 삭제)
+ *   - `research_keywords` (타입엔 있었으나 실 호출 파일 없음)
+ * 과거 ai_usage_logs.feature 레코드는 text 컬럼이라 그대로 보존됨.
+ */
 export type AIFeature =
   | 'concept_extraction'
   | 'journal_analysis'
   | 'journal_recommendation'
   | 'asset_insights'
   | 'research_questions'
-  | 'research_keywords'
   | 'topic_recommendation'
   | 'timeliness_analysis'
   | 'tier_monitoring'
   | 'relevance_tagging'
   | 'track_monitoring'
-  | 'search_keywords'
   | 'search_plan'
   | 'search_synthesis'
   | 'paper_verification'

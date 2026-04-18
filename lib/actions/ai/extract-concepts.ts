@@ -153,32 +153,3 @@ export async function batchExtractConcepts(
   }
 }
 
-// ── 우선순위 점수 재계산 (tier 변경 시) ──────────────────
-// tier만 바꿨을 때 AI 재호출 없이 점수만 갱신
-
-export async function recalcPriorityScore(paperId: string): Promise<ActionResult> {
-  const supabase = await createClient()
-
-  const { data: paper, error } = await supabase
-    .from('reference_papers')
-    .select('tier, year, relevance_score')
-    .eq('id', paperId)
-    .single()
-
-  if (error || !paper) return { success: false, error: '논문 없음' }
-  if (paper.relevance_score == null) return { success: false, error: 'AI 분석 먼저 실행 필요' }
-
-  const newScore = computePriorityScore(
-    paper.tier as PaperTier | null,
-    paper.year,
-    paper.relevance_score,
-  )
-
-  await supabase
-    .from('reference_papers')
-    .update({ priority_score: newScore })
-    .eq('id', paperId)
-
-  revalidatePath('/reference-papers')
-  return { success: true, data: undefined }
-}
