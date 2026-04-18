@@ -8,6 +8,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { withFrameworkProtocol } from '@/lib/framework-philosophy'
 import { createClient } from '@/lib/supabase/server'
+import { calcCostUsd, estimateCallCostUsd } from '@/lib/ai/pricing'
+import { BudgetExceededError, type BudgetStatus } from '@/lib/ai/budget'
 
 /**
  * 기능 레이블 — UI 표시 및 비용 분류 기준.
@@ -75,6 +77,11 @@ export async function generateJson<T>(
   }
 
   const fullPrompt = opts?.skipFrameworkProtocol ? prompt : withFrameworkProtocol(prompt)
+
+  // Phase 3-pre: pre-call 예산 체크. 프로젝트 ID가 있고 env 우회 플래그가 없을 때만 수행.
+  // hard_limit_enabled=true 이면서 한도 초과 예상 시 throw. 그 외에는 console.warn.
+  await enforceBudget(opts?.meta?.projectId, fullPrompt, opts?.maxTokens ?? 2048, opts?.meta?.feature)
+
   const { text, usage } = await callClaude(fullPrompt, temperature, opts?.maxTokens)
 
   if (opts?.meta) {
@@ -130,6 +137,131 @@ async function callClaude(
     }
   }
   throw lastError
+}
+
+// ── Budget pre-call check (Phase 3-pre) ───────────────────
+
+/**
+ * 월 예산이 설정된 프로젝트에 한해 pre-call 체크.
+ *   - `AI_BUDGET_BYPASS=1` env 로 전면 우회 가능 (CI/테스트용)
+ *   - 예산 행 없음 → 체크 스킵
+ *   - 한도 초과 예상 + hard_limit_enabled=true → BudgetExceededError throw
+ *   - 한도 초과 예상 + hard_limit_enabled=false → console.warn (계속 진행)
+ *   - 경고 임계 초과 → console.warn
+ *   - 체크 중 에러 → 호출 자체는 계속 진행 (로그만 남김)
+ */
+async function enforceBudget(
+  projectId: string | undefined,
+  prompt: string,
+  maxTokens: number,
+  feature: AIFeature | undefined,
+): Promise<void> {
+  if (!projectId) return
+  if (process.env.AI_BUDGET_BYPASS === '1') return
+
+  let status: BudgetStatus | null = null
+  try {
+    status = await computeBudgetStatus(projectId, prompt, maxTokens)
+  } catch (err) {
+    console.warn('[AI Budget] 체크 실패, 호출은 계속 진행:', err)
+    return
+  }
+  if (!status) return
+
+  const tag = feature ? `feature=${feature}` : 'no-feature'
+  const usage =
+    `projected=$${status.projectedUsd.toFixed(4)} / limit=$${(status.limitUsd ?? 0).toFixed(2)} ` +
+    `(${status.utilizationPct.toFixed(1)}%)`
+
+  if (status.exceed) {
+    if (status.hardLimit) {
+      // 차단 이벤트를 먼저 기록(fire-and-forget) 후 throw.
+      logBudgetEvent(projectId, feature, 'blocked', status).catch(() => {})
+      throw new BudgetExceededError(status)
+    }
+    console.warn(`[AI Budget EXCEED] ${tag} ${usage} — hard_limit_enabled=false, 계속 진행`)
+    logBudgetEvent(projectId, feature, 'exceed', status).catch(() => {})
+    return
+  }
+  if (status.warn) {
+    console.warn(`[AI Budget WARN] ${tag} ${usage}`)
+    logBudgetEvent(projectId, feature, 'warn', status).catch(() => {})
+  }
+}
+
+/** Phase 3-pre Q2: 경고/초과/차단 이벤트를 ai_budget_events 에 기록 */
+async function logBudgetEvent(
+  projectId: string,
+  feature: AIFeature | undefined,
+  eventType: 'warn' | 'exceed' | 'blocked',
+  status: BudgetStatus,
+): Promise<void> {
+  try {
+    const supabase = await createClient()
+    await supabase.from('ai_budget_events').insert({
+      project_id:      projectId,
+      feature:         feature ?? null,
+      event_type:      eventType,
+      limit_usd:       status.limitUsd ?? 0,
+      current_usd:     status.currentUsd,
+      estimate_usd:    status.estimateUsd,
+      projected_usd:   status.projectedUsd,
+      utilization_pct: status.utilizationPct,
+    })
+  } catch {
+    // 이벤트 로깅 실패는 무시 (비핵심)
+  }
+}
+
+async function computeBudgetStatus(
+  projectId: string,
+  prompt: string,
+  maxTokens: number,
+): Promise<BudgetStatus | null> {
+  const supabase = await createClient()
+
+  const { data: budget, error: budgetErr } = await supabase
+    .from('ai_budgets')
+    .select('monthly_limit_usd, warning_threshold_pct, hard_limit_enabled')
+    .eq('project_id', projectId)
+    .maybeSingle()
+
+  if (budgetErr) throw new Error(budgetErr.message)
+  if (!budget || budget.monthly_limit_usd == null) return null
+
+  const monthStart = new Date()
+  monthStart.setUTCDate(1)
+  monthStart.setUTCHours(0, 0, 0, 0)
+
+  const { data: logs, error: logsErr } = await supabase
+    .from('ai_usage_logs')
+    .select('model, input_tokens, output_tokens')
+    .eq('project_id', projectId)
+    .gte('created_at', monthStart.toISOString())
+
+  if (logsErr) throw new Error(logsErr.message)
+
+  const currentUsd = (logs ?? []).reduce(
+    (sum, l) => sum + calcCostUsd(l.model, l.input_tokens, l.output_tokens),
+    0,
+  )
+  const estimateUsd = estimateCallCostUsd(prompt, maxTokens, CLAUDE_MODEL)
+  const projected   = currentUsd + estimateUsd
+  const limit       = Number(budget.monthly_limit_usd)
+  const warnPct     = Number(budget.warning_threshold_pct ?? 80)
+  const utilization = limit > 0 ? (projected / limit) * 100 : 0
+
+  return {
+    limitUsd:       limit,
+    warningPct:     warnPct,
+    currentUsd,
+    estimateUsd,
+    projectedUsd:   projected,
+    utilizationPct: utilization,
+    warn:           utilization > warnPct,
+    exceed:         utilization > 100,
+    hardLimit:      !!budget.hard_limit_enabled,
+  }
 }
 
 // ── Usage logger ──────────────────────────────────────────

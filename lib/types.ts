@@ -457,6 +457,45 @@ export interface ProjectDashboard {
   total_assets: number
 }
 
+// ── AI Budget (Phase 3-pre) ───────────────────────────────
+
+/**
+ * 프로젝트별 월간 AI 예산.
+ * Phase 3-pre 경량판: 경고 + 선택적 차단.
+ * Phase 3-full 에서 UI / 기능별 quota / 히스토리 추가 예정.
+ */
+export interface AiBudget {
+  project_id:            string
+  monthly_limit_usd:     number
+  warning_threshold_pct: number
+  hard_limit_enabled:    boolean
+  created_at:            string
+  updated_at:            string
+}
+
+export interface AiBudgetInput {
+  project_id:             string
+  monthly_limit_usd:      number
+  warning_threshold_pct?: number
+  hard_limit_enabled?:    boolean
+}
+
+/** Phase 3-pre Q2: 경고/초과/차단 이벤트 로그 한 건 */
+export type AiBudgetEventType = 'warn' | 'exceed' | 'blocked'
+
+export interface AiBudgetEvent {
+  id:              string
+  project_id:      string
+  feature:         string | null
+  event_type:      AiBudgetEventType
+  limit_usd:       number
+  current_usd:     number
+  estimate_usd:    number
+  projected_usd:   number
+  utilization_pct: number
+  created_at:      string
+}
+
 // ── server action result ───────────────────────────────────
 
 export type ActionResult<T = void> =

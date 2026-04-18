@@ -229,10 +229,11 @@ function composePrompt(task: PromptTask, ctx: PromptContext): string
 | Phase | 상태 | 브랜치 | PR | 비고 |
 |---|---|---|---|---|
 | 0. 온보딩·진단 | **approved** | `refactor/phase-0-baseline` | (PR 대기) | 확정 게이트 통과 2026-04-18 |
-| 1. papers 통합 | **review** | `refactor/phase-1-papers-consolidation` | (PR 대기) | A안 구현 완료, migration-v15 포함, tsc+build 통과 |
-| 2A. 프롬프트 빌더 | pending | — | — | Phase 3 경량판 선도입 조건 |
+| 1. papers 통합 | **approved** | `refactor/phase-1-papers-consolidation` | (PR 대기) | 통과 2026-04-18. migration-v15 적용 필요 |
+| 3-pre. 예산 경량 | **review** | `refactor/phase-3-pre-budget` | (PR 대기) | migration-v16 + generate.ts pre-call check |
+| 2A. 프롬프트 빌더 | pending | — | — | 3-pre 확정 후 착수 |
 | 2B. 플로우 맵 | pending | — | — | 2A와 병렬 가능 |
-| 3. 예산 거버넌스 | split | — | — | Phase 3-pre(경량) / 3-full 분리 |
+| 3-full. 예산 UI | pending | — | — | 2A 이후 |
 | 4. M3→M5→M4 자동화 | pending | — | — | Discovery→Asset 자동화 포함 |
 | 5. 검증·문서화 | pending | — | — | |
 

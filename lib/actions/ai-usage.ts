@@ -2,20 +2,10 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getAIStatus } from '@/lib/ai/generate'
+import { calcCostUsd } from '@/lib/ai/pricing'
 import { FEATURE_LABELS } from '@/lib/ai-feature-labels'
 
-// ── 비용 단가 (per token) ─────────────────────────────────
-const COST_PER_TOKEN: Record<string, { input: number; output: number }> = {
-  'claude-haiku-4-5-20251001': { input: 0.0000008, output: 0.000004 },  // $0.80/$4.00 per 1M
-  'claude-3-5-haiku-latest':   { input: 0.0000008, output: 0.000004 },  // 레거시 로그 호환
-}
-
-const DEFAULT_RATE = { input: 0.0000008, output: 0.000004 }
-
-function calcCost(model: string, input: number, output: number): number {
-  const rate = COST_PER_TOKEN[model] ?? DEFAULT_RATE
-  return input * rate.input + output * rate.output
-}
+// 비용 단가는 lib/ai/pricing.ts 에 중앙화 (Phase 3-pre).
 
 // ── 타입 ─────────────────────────────────────────────────
 
@@ -115,7 +105,7 @@ export async function getAIUsageData(projectId?: string | null): Promise<AIUsage
       input_tokens:  v.input,
       output_tokens: v.output,
       call_count:    v.count,
-      cost:          calcCost(v.model, v.input, v.output),
+      cost:          calcCostUsd(v.model, v.input, v.output),
     }))
     .sort((a, b) => b.input_tokens + b.output_tokens - a.input_tokens - a.output_tokens)
 
@@ -128,7 +118,7 @@ export async function getAIUsageData(projectId?: string | null): Promise<AIUsage
     model:         l.model,
     input_tokens:  l.input_tokens,
     output_tokens: l.output_tokens,
-    cost:          calcCost(l.model, l.input_tokens, l.output_tokens),
+    cost:          calcCostUsd(l.model, l.input_tokens, l.output_tokens),
     created_at:    l.created_at,
   }))
 
@@ -149,7 +139,7 @@ function summarize(
   for (const l of logs) {
     totalInput  += l.input_tokens
     totalOutput += l.output_tokens
-    cost        += calcCost(l.model, l.input_tokens, l.output_tokens)
+    cost        += calcCostUsd(l.model, l.input_tokens, l.output_tokens)
   }
   return {
     totalInput,
