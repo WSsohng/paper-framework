@@ -110,7 +110,6 @@ function TrackRow({
         )}
       </Link>
       <div className="flex shrink-0 items-center gap-4">
-        <span className="text-sm text-zinc-600">{track.paper_count ?? 0}편 논문</span>
         <TrackStatusBadge status={track.status} />
         <TrackDialog
           track={track}

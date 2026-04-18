@@ -9,32 +9,24 @@ export async function getTracks(projectId?: string | null): Promise<Track[]> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('tracks')
-    .select('*, papers(count), project:projects(id, name), parent_track:tracks!parent_track_id(id, name)')
+    .select('*, project:projects(id, name), parent_track:tracks!parent_track_id(id, name)')
     .eq('project_id', projectId)
     .order('created_at', { ascending: false })
 
   if (error) throw new Error(error.message)
-
-  return (data ?? []).map((t) => ({
-    ...t,
-    paper_count: (t.papers as unknown as { count: number }[])?.[0]?.count ?? 0,
-  }))
+  return data ?? []
 }
 
 export async function getTrack(id: string): Promise<Track | null> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('tracks')
-    .select('*, papers(count), project:projects(id, name), parent_track:tracks!parent_track_id(id, name)')
+    .select('*, project:projects(id, name), parent_track:tracks!parent_track_id(id, name)')
     .eq('id', id)
     .single()
 
   if (error) return null
-
-  return {
-    ...data,
-    paper_count: (data.papers as unknown as { count: number }[])?.[0]?.count ?? 0,
-  }
+  return data
 }
 
 export async function createTrack(input: TrackInput): Promise<ActionResult<Track>> {
