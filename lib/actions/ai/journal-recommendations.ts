@@ -1,13 +1,14 @@
 'use server'
 
 import { generateJson } from '@/lib/ai/generate'
-import { AI_PROTOCOL_PREAMBLE } from '@/lib/framework-philosophy'
+import { AIContextBuilder } from '@/lib/ai/context-builder'
+import { composePrompt } from '@/lib/ai/prompt-composer'
 
 export type FitLevel = 'optimal' | 'adequate' | 'insufficient' | 'excessive'
-// optimal    = 범위·수준 딱 맞음
-// adequate   = 투고 가능하나 약간 아쉬운 부분 있음
+// optimal      = 범위·수준 딱 맞음
+// adequate     = 투고 가능하나 약간 아쉬운 부분 있음
 // insufficient = 연구 수준/범위가 이 저널 기대치에 미치지 못함
-// excessive  = 저널이 이 연구보다 훨씬 넓은 범위를 요구 (over-scoped)
+// excessive    = 저널이 이 연구보다 훨씬 넓은 범위를 요구 (over-scoped)
 
 export interface JournalRecommendation {
   name:           string
@@ -30,26 +31,29 @@ export async function recommendJournals(
   projectName: string,
   researchIntent: string,
 ): Promise<RecommendationResult> {
-  const prompt = `${AI_PROTOCOL_PREAMBLE}
+  const { sections } = await new AIContextBuilder({ lang: 'en' })
+    .withCustom({
+      id:    'project_meta',
+      title: 'Project',
+      body:  `Name: ${projectName}\nResearch Intent: ${researchIntent}`,
+    })
+    .build()
 
----
-
-You are an expert academic journal consultant with deep knowledge of scientific publishing.
-
-Based on the following research project, recommend exactly 10 suitable journals for manuscript submission.
-
-Project Name: ${projectName}
-Research Intent: ${researchIntent}
-
-Requirements:
-- Include a mix of high-impact journals (IF > 10) and accessible journals (IF 3–10)
-- Prioritize journals that genuinely fit the research topic
-- Include journals from relevant fields (consider interdisciplinary options)
-- Provide realistic impact factor estimates based on recent data (use null if unknown)
-
-Return ONLY a valid JSON array with exactly 10 objects in this structure:
-[
-  {
+  const prompt = composePrompt(
+    {
+      lang:      'en',
+      role:      'You are an expert academic journal consultant with deep knowledge of scientific publishing.',
+      objective: 'Based on the research project below, recommend exactly 10 suitable journals for manuscript submission.',
+      notes: [
+        'Include a mix of high-impact journals (IF > 10) and accessible journals (IF 3–10).',
+        'Prioritize journals that genuinely fit the research topic.',
+        'Include journals from relevant fields (consider interdisciplinary options).',
+        'Provide realistic impact factor estimates based on recent data (use null if unknown).',
+        'fit_level rules: optimal (scope/depth/novelty all matched) | adequate (publishable but strengthen 1–2 aspects) | insufficient (below journal expectations) | excessive (journal covers much broader territory).',
+      ],
+      output: {
+        kind:  'array',
+        shape: `{
     "name": "Full journal name",
     "publisher": "Publisher name",
     "impact_factor": 15.2,
@@ -60,20 +64,18 @@ Return ONLY a valid JSON array with exactly 10 objects in this structure:
     "fit_level": "optimal | adequate | insufficient | excessive",
     "fit_reason": "Korean: 1-2 sentences on exactly why this fit level",
     "website": "https://..."
-  }
-]
-
-fit_level rules:
-- optimal: scope, depth, novelty all well-matched
-- adequate: publishable but researcher should strengthen 1-2 aspects
-- insufficient: the research doesn't meet the journal's expectations
-- excessive: the journal covers much broader territory than this specific research
-
-Order by fit_score descending. No markdown, no explanation — pure JSON only.`
+  }`,
+        count:   { exact: 10 },
+        orderBy: 'fit_score descending',
+      },
+    },
+    { sections },
+  )
 
   try {
+    // 기본 동작: withFrameworkProtocol 이 자동 prepend 됨 (AI_PROTOCOL_PREAMBLE + ---).
+    // 기존 코드에서 수동 prepend + skipFrameworkProtocol:true 로 동일 효과를 냈던 부분을 단순화.
     const list = await generateJson<JournalRecommendation[]>(prompt, 0.4, {
-      skipFrameworkProtocol: true,
       meta: { feature: 'journal_recommendation' },
       maxTokens: 4096,
     })

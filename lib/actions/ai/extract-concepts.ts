@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { generateJson } from '@/lib/ai/generate'
+import { AIContextBuilder } from '@/lib/ai/context-builder'
+import { composePrompt } from '@/lib/ai/prompt-composer'
 import type { ActionResult, PaperTier } from '@/lib/types'
 
 // ── 우선순위 점수 계산 ─────────────────────────────────────
@@ -49,30 +51,48 @@ export async function extractPaperConcepts(
 
   if (fetchErr || !paper) return { success: false, error: '논문을 찾을 수 없습니다.' }
 
-  const prompt = `
-다음 논문을 분석해서 JSON으로만 응답하세요.
+  // 단일 논문이라 DB 재조회 없이 custom 섹션 사용.
+  const paperInfo =
+    `제목: ${paper.title}\n` +
+    `연도: ${paper.year ?? '불명'}\n` +
+    `Abstract: ${paper.abstract ?? '(없음)'}\n` +
+    `메모: ${paper.notes ?? '(없음)'}`
 
-[프로젝트 Research Intent]
-${researchIntent}
+  const { sections } = await new AIContextBuilder({
+    projectId: (paper as { project_id?: string }).project_id,
+  })
+    .withCustom({
+      id:    'research_intent',
+      title: '프로젝트 Research Intent',
+      body:  researchIntent,
+    })
+    .withCustom({
+      id:    'paper_info',
+      title: '논문 정보',
+      body:  paperInfo,
+    })
+    .build()
 
-[논문 정보]
-제목: ${paper.title}
-연도: ${paper.year ?? '불명'}
-Abstract: ${paper.abstract ?? '(없음)'}
-메모: ${paper.notes ?? '(없음)'}
-
-아래 JSON 형식으로 응답:
-{
+  const prompt = composePrompt(
+    {
+      role:      '당신은 학술 논문 개념 추출 분석가입니다.',
+      objective: '위 논문을 분석하여 핵심 개념과 프로젝트 연관도를 JSON 으로 반환하세요.',
+      output: {
+        kind:  'object',
+        shape: `{
   "concepts": ["개념1", "개념2", ..., "개념N"],
   "relevance_score": 0.0~1.0,
   "relevance_reason": "한 문장으로 관련도 판단 근거"
-}
-
-규칙:
-- concepts: 5~8개, 영어 또는 한국어 단어/구문, 논문의 핵심 방법론·데이터셋·지표·발견을 포함
-- relevance_score: Research Intent와의 주제·방법·분야 일치도 (1.0=완벽 일치, 0.0=무관)
-- relevance_reason: 왜 이 점수인지 구체적으로 (저널명·방법론·결과 언급 포함)
-`.trim()
+}`,
+      },
+      notes: [
+        'concepts: 5~8개, 영어 또는 한국어 단어/구문, 논문의 핵심 방법론·데이터셋·지표·발견을 포함.',
+        'relevance_score: Research Intent 와의 주제·방법·분야 일치도 (1.0=완벽 일치, 0.0=무관).',
+        'relevance_reason: 왜 이 점수인지 구체적으로 (저널명·방법론·결과 언급 포함).',
+      ],
+    },
+    { sections },
+  )
 
   let result: ConceptExtractionResult
   try {

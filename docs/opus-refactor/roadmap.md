@@ -231,7 +231,7 @@ function composePrompt(task: PromptTask, ctx: PromptContext): string
 | 0. 온보딩·진단 | **merged** | `refactor/phase-0-baseline` | local merge `49bf7ea` | 확정 게이트 통과 2026-04-18 |
 | 1. papers 통합 | **merged** | `refactor/phase-1-papers-consolidation` | local merge `8793c3c` | migration-v15 포함 |
 | 3-pre. 예산 경량 | **merged** | `refactor/phase-3-pre-budget` | local merge `13333cd` | migration-v16, v17 포함. Q1/Q2/Q3 결정 반영 |
-| 2A. 프롬프트 빌더 | **next** | — | — | 3-pre 완료. 착수 대상 |
+| 2A. 프롬프트 빌더 | **review** | `refactor/phase-2a-prompt-builder` | 로컬 머지 대기 | C1~C7 구현 완료. 스냅샷·가이드 포함 |
 | 2B. 플로우 맵 | pending | — | — | 2A와 병렬 가능 |
 | 3-full. 예산 UI | pending | — | — | 2A 이후 |
 | 4. M3→M5→M4 자동화 | pending | — | — | Discovery→Asset 자동화 포함 |
