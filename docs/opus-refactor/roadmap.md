@@ -228,7 +228,7 @@ function composePrompt(task: PromptTask, ctx: PromptContext): string
 
 | Phase | 상태 | 브랜치 | PR | 비고 |
 |---|---|---|---|---|
-| 0. 온보딩·진단 | pending | — | — | Opus 세션 시작 시 최초 수행 |
+| 0. 온보딩·진단 | **review** | `refactor/phase-0-baseline` | — | 산출물 커밋 완료. 확정 게이트 대기 중 |
 | 1. papers 통합 | pending | — | — | |
 | 2A. 프롬프트 빌더 | pending | — | — | |
 | 2B. 플로우 맵 | pending | — | — | 2A와 병렬 가능 |
