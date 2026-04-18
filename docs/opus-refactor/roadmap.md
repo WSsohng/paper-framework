@@ -228,12 +228,79 @@ function composePrompt(task: PromptTask, ctx: PromptContext): string
 
 | Phase | 상태 | 브랜치 | PR | 비고 |
 |---|---|---|---|---|
-| 0. 온보딩·진단 | **review** | `refactor/phase-0-baseline` | — | 산출물 커밋 완료. 확정 게이트 대기 중 |
-| 1. papers 통합 | pending | — | — | |
-| 2A. 프롬프트 빌더 | pending | — | — | |
+| 0. 온보딩·진단 | **approved** | `refactor/phase-0-baseline` | (PR 대기) | 확정 게이트 통과 2026-04-18 |
+| 1. papers 통합 | ready | — | — | A안 확정 (아래 §Phase 0 결정) |
+| 2A. 프롬프트 빌더 | pending | — | — | Phase 3 경량판 선도입 조건 |
 | 2B. 플로우 맵 | pending | — | — | 2A와 병렬 가능 |
-| 3. 예산 거버넌스 | pending | — | — | 2A 이후 |
-| 4. M3→M5→M4 자동화 | pending | — | — | |
+| 3. 예산 거버넌스 | split | — | — | Phase 3-pre(경량) / 3-full 분리 |
+| 4. M3→M5→M4 자동화 | pending | — | — | Discovery→Asset 자동화 포함 |
 | 5. 검증·문서화 | pending | — | — | |
 
 각 Phase 완료 시 이 표를 업데이트하고 브랜치/PR 링크를 기입한다.
+
+---
+
+## Phase 0 결정 사항 (2026-04-18 사용자 확정)
+
+Phase 0 게이트에서 확정된 사항. 이후 Phase 설계는 이 결정을 전제로 한다.
+
+### D-1. `papers` 테이블은 **제거**한다 (Phase 1 A안)
+- 사유: 운영 DB `select count(*) from papers` = 0. 실제 사용 이력 없음.
+- 범위: 테이블 drop + 6개 참조 파일 제거/이관 + `Paper` 타입 제거
+- `papers.notes` 이관 로직 불필요 (데이터 없음). 그러나 마이그레이션 스크립트는 **행 수 체크 후 0이 아니면 ABORT** 하는 안전장치 포함.
+
+### D-2. RLS는 `allow_all` 유지 (개발 단계)
+- Phase 3·5에서 멀티유저 전환 시 재검토
+- Phase 3의 `ai_budgets` 도 `allow_all` 정책으로 시작
+
+### D-3. Dead code 5건은 Phase 1 PR에 포함하여 정리
+- `lib/actions/papers.ts` → 파일 전체 제거 (D-1에 포함)
+- `lib/actions/ai/extract-keywords.ts` → 제거
+- `lib/actions/ai/research-keywords.ts` → 제거
+- `lib/actions/reference-paper-tracks.ts` `getPaperRelevances` → 제거
+- `lib/actions/ai/extract-concepts.ts` `recalcPriorityScore` → 제거
+- `AIFeature` 타입에서 `search_keywords`, `research_keywords`, `track_monitoring` 제거
+
+### D-4. Discovery → Asset 자동 생성 (Phase 4 범위)
+- `discovery_rounds.saved_semantic_ids` 가 가리키는 논문이 `reference_papers`에 insert될 때 → 해당 논문의 key concept을 담은 `asset` 자동 생성
+- 자동 생성 자산 타입: `reference` 또는 `note` (Phase 4에서 구체화)
+- Phase 2B 흐름 맵에서 **"자동 연결"** 으로 이미 결정된 엣지로 표기
+- 사후에 수동 전환 가능하도록 설계
+
+### D-5. Phase 3 분리: Phase 2A 착수 **전** 경량판 선도입
+- **Phase 3-pre** (Phase 2A 착수 전 필수):
+  - `ai_budgets` 테이블 생성 (project_id, monthly_limit_usd, warning_threshold_pct)
+  - `lib/ai/generate.ts` 호출 전 이번 달 누적 조회 → 경고 로그 출력
+  - **선택적 차단 게이트**: `estimate_tokens` 휴리스틱(프롬프트 길이 × 4 등) 기반 사전 추정 → 한도 초과 예상 시 `throw BudgetEstimateError` 또는 env 플래그로 우회 허용
+  - UI 없음 (Phase 3-full로)
+- **Phase 3-full** (Phase 2A 이후 본편):
+  - UI 경고 배너, 예산 설정 패널
+  - 기능별 quota
+  - Hard limit vs Soft limit 결정
+
+### 실행 시점 영향
+- Phase 1 바로 착수 가능 (분기 결정 완료)
+- Phase 2A는 Phase 3-pre 완료 후에만 착수
+- 의존성 그래프 갱신:
+
+```mermaid
+flowchart TD
+    P0[Phase 0 ✓]
+    P1[Phase 1: papers 제거]
+    P3pre[Phase 3-pre: 예산 경량]
+    P2A[Phase 2A: 프롬프트 빌더]
+    P2B[Phase 2B: 플로우 맵]
+    P3full[Phase 3-full: 예산 UI]
+    P4[Phase 4: 자동화]
+    P5[Phase 5: 검증]
+
+    P0 --> P1
+    P1 --> P3pre
+    P1 --> P2B
+    P3pre --> P2A
+    P2A --> P3full
+    P2A --> P4
+    P2B --> P4
+    P3full --> P4
+    P4 --> P5
+```
