@@ -228,14 +228,16 @@ function composePrompt(task: PromptTask, ctx: PromptContext): string
 
 | Phase | 상태 | 브랜치 | PR | 비고 |
 |---|---|---|---|---|
-| 0. 온보딩·진단 | **approved** | `refactor/phase-0-baseline` | (PR 대기) | 확정 게이트 통과 2026-04-18 |
-| 1. papers 통합 | **approved** | `refactor/phase-1-papers-consolidation` | (PR 대기) | 통과 2026-04-18. migration-v15 적용 필요 |
-| 3-pre. 예산 경량 | **review** | `refactor/phase-3-pre-budget` | (PR 대기) | migration-v16 + generate.ts pre-call check |
-| 2A. 프롬프트 빌더 | pending | — | — | 3-pre 확정 후 착수 |
+| 0. 온보딩·진단 | **merged** | `refactor/phase-0-baseline` | local merge `49bf7ea` | 확정 게이트 통과 2026-04-18 |
+| 1. papers 통합 | **merged** | `refactor/phase-1-papers-consolidation` | local merge `8793c3c` | migration-v15 포함 |
+| 3-pre. 예산 경량 | **merged** | `refactor/phase-3-pre-budget` | local merge `13333cd` | migration-v16, v17 포함. Q1/Q2/Q3 결정 반영 |
+| 2A. 프롬프트 빌더 | **next** | — | — | 3-pre 완료. 착수 대상 |
 | 2B. 플로우 맵 | pending | — | — | 2A와 병렬 가능 |
 | 3-full. 예산 UI | pending | — | — | 2A 이후 |
 | 4. M3→M5→M4 자동화 | pending | — | — | Discovery→Asset 자동화 포함 |
 | 5. 검증·문서화 | pending | — | — | |
+
+> **워크플로**: 사용자 결정(2026-04-18)으로 PR 미사용. 로컬 `--no-ff` 머지 후 `main` 직접 푸시.
 
 각 Phase 완료 시 이 표를 업데이트하고 브랜치/PR 링크를 기입한다.
 
