@@ -4,14 +4,18 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   generateResearchQuestions,
+} from '@/lib/actions/ai/research-questions'
+import {
   type ResearchQuestion,
   type SearchHistoryItem,
   type CoverageMap,
   DOMAIN_LABEL,
   DOMAIN_COLOR,
-} from '@/lib/actions/ai/research-questions'
-import { searchPapers, type FoundPaper } from '@/lib/actions/search/search-papers'
-import { planSearch, type SearchPlan } from '@/lib/actions/ai/plan-search'
+} from '@/lib/types/research-questions'
+import { searchPapers } from '@/lib/actions/search/search-papers'
+import type { FoundPaper } from '@/lib/actions/search/semantic-scholar'
+import { planSearch } from '@/lib/actions/ai/plan-search'
+import type { SearchPlan } from '@/lib/types/search-plan'
 import { verifyPaperRelevance, type PaperVerification, type PaperMatch } from '@/lib/actions/ai/verify-papers'
 import { synthesizeSearchResults } from '@/lib/actions/ai/synthesize-results'
 import { createReferencePaper } from '@/lib/actions/reference-papers'
@@ -31,6 +35,7 @@ import {
   clearDiscoveryRounds,
   type DiscoveryRoundRow,
 } from '@/lib/actions/discovery-rounds'
+import { enrichJournalImpactFactors } from '@/lib/actions/search/journal-if-cache'
 
 // ── Constants ─────────────────────────────────────────────
 // 주제 추천 활성화 조건: 질문 1회 이상 + 논문 3편 이상 (이전: 논문 15편)
@@ -127,6 +132,10 @@ export function LiteratureDiscoveryPanel({
 
   // ── DB 로드 상태 ─────────────────────────────────────────
   const [dbLoaded, setDbLoaded] = useState(false)
+  /** 라운드 로드 중 서버 에러가 발생한 경우 메시지. null 이면 정상. */
+  const [loadError, setLoadError] = useState<string | null>(null)
+  /** 수동 재시도 트리거 — bump 시 effect 재실행 */
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   // Questions state
   const [questions, setQuestions]       = useState<ResearchQuestion[]>([])
@@ -158,9 +167,19 @@ export function LiteratureDiscoveryPanel({
   const [customTopic, setCustomTopic]   = useState('')
   const [creatingTrack, setCreatingTrack] = useState(false)
 
+  // ── IF (Impact Factor) 필터 ─────────────────────────────
+  /**
+   * 저널 IF 임계값. null = 필터 비활성(전체 표시).
+   * 프로젝트별로 localStorage 에 지속.
+   * IF 값을 모르는 논문은 항상 포함(배지만 'IF ?' 로 표기) — 사용자 결정.
+   */
+  const [ifThreshold, setIfThreshold] = useState<number | null>(null)
+  /** 커스텀 입력 모드 토글 + 임시 텍스트 (빈 값이면 preset 드롭다운만 사용) */
+  const [customIfInput, setCustomIfInput] = useState<string>('')
+
   // ── DB: 프로젝트 변경 시 state 초기화 + 라운드 재로드 ──
   useEffect(() => {
-    // 이전 프로젝트 데이터 완전 초기화
+    // 이전 프로젝트 데이터 완전 초기화 (프로젝트 간 누수 방지)
     setRounds([])
     setQuestions([])
     setTopics([])
@@ -170,18 +189,88 @@ export function LiteratureDiscoveryPanel({
     setIsFollowUp(false)
     setCoverage(null)
     setDbLoaded(false)
+    setLoadError(null)
     savedIdsRef.current = new Set()
 
-    getDiscoveryRounds(projectId).then((rows) => {
-      setRounds(rows.map(rowToRound))
-      setIsFollowUp(rows.length > 0)
-      setDbLoaded(true)
-    })
+    // Race condition 방지: 이 effect 가 실행되는 동안 projectId 가 바뀌면
+    // 오래된 응답이 새 상태를 덮어쓰지 못하도록 플래그로 차단.
+    let cancelled = false
+
+    // 10초 타임아웃 — 서버 응답이 늦어도 UI 는 최소한 재시도 버튼을 보여줌.
+    const timeout = setTimeout(() => {
+      if (cancelled) return
+      setLoadError('서버 응답이 10초 이상 지연되고 있습니다. 다시 시도하거나 페이지를 새로고침하세요.')
+      setDbLoaded(true)  // 일단 UI 진입은 허용 (빈 상태로 보여줌)
+    }, 10_000)
+
+    const tClient0 = Date.now()
+    console.log(
+      `[LiteratureDiscoveryPanel] loading rounds for project=${projectId.slice(0, 8)}…`,
+    )
+
+    getDiscoveryRounds(projectId)
+      .then((rows) => {
+        if (cancelled) return
+        clearTimeout(timeout)
+        const elapsed = Date.now() - tClient0
+        console.log(
+          `[LiteratureDiscoveryPanel] loaded rows=${rows.length} in ${elapsed}ms ` +
+          `(project=${projectId.slice(0, 8)})`,
+        )
+        setRounds(rows.map(rowToRound))
+        setIsFollowUp(rows.length > 0)
+        setLoadError(null)
+        setDbLoaded(true)
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        clearTimeout(timeout)
+        const elapsed = Date.now() - tClient0
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error(
+          `[LiteratureDiscoveryPanel] getDiscoveryRounds FAILED after ${elapsed}ms ` +
+          `(project=${projectId.slice(0, 8)}):`,
+          err,
+        )
+        setLoadError(`탐색 기록 불러오기 실패: ${msg}`)
+        setDbLoaded(true)
+      })
+
+    return () => {
+      cancelled = true
+      clearTimeout(timeout)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId])
+  }, [projectId, loadAttempt])
 
   // roundsRef 동기화
   useEffect(() => { roundsRef.current = rounds }, [rounds])
+
+  // ── IF 필터: localStorage 로드/저장 (프로젝트별) ────────
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`m0-if-filter:${projectId}`)
+      if (raw == null || raw === '') {
+        setIfThreshold(null)
+      } else {
+        const n = Number(raw)
+        setIfThreshold(Number.isFinite(n) ? n : null)
+      }
+    } catch {
+      // localStorage 접근 실패(SSR/사파리 프라이빗 등) — 기본값 유지
+    }
+    setCustomIfInput('')
+  }, [projectId])
+
+  useEffect(() => {
+    try {
+      const key = `m0-if-filter:${projectId}`
+      if (ifThreshold == null) localStorage.removeItem(key)
+      else                     localStorage.setItem(key, String(ifThreshold))
+    } catch {
+      // ignore
+    }
+  }, [projectId, ifThreshold])
 
   // ── Derived ─────────────────────────────────────────────
   const intent           = researchIntent?.trim() ?? ''
@@ -338,12 +427,23 @@ export function LiteratureDiscoveryPanel({
       r.id === roundId ? { ...r, papers: allPapers, phase: 'verifying', searchProgress: null } : r,
     ))
 
-    // ── Phase 3: 관련성 분석 ─────────────────────────────
+    // ── Phase 3: 관련성 분석 + IF 보강 (병렬) ────────────
+    // IF 보강(enrich) 은 Claude verification 과 독립적이므로 Promise.all 로 병렬 실행.
+    // 캐시 히트가 많으면 수십 ms 로 끝나고, 미스 시 OpenAlex 병렬 조회(동시성 6).
     setActivePhase('verifying')
 
     const isMultiSearch = searches.length > 1 && plan?.query_type !== 'direct_search'
-    let verifications: PaperVerification[]
 
+    const enrichStart = Date.now()
+    const enrichmentPromise = enrichJournalImpactFactors(
+      allPapers.map((p) => p.journal),
+    ).catch((err: unknown) => {
+      // 보강 실패는 UX 를 막지 않음 — 빈 결과로 폴백 (PaperRow 는 IF 없음 = 표시 생략)
+      console.warn('[M0 IF enrich] failed:', err instanceof Error ? err.message : err)
+      return { map: {} as Record<string, number | null>, fetched: 0, hits: 0, errors: 1 }
+    })
+
+    let verifications: PaperVerification[]
     if (isMultiSearch && plan) {
       // comparison: Claude가 그룹별 컨텍스트로 합성
       verifications = await synthesizeSearchResults(
@@ -362,6 +462,22 @@ export function LiteratureDiscoveryPanel({
         allPapers.map((p) => ({ title: p.title, abstract: p.abstract, year: p.year, journal: p.journal })),
         selectedProjectId,
       )
+    }
+
+    // enrichment 결과 머지: verification 과 무관하게 항상 allPapers 를 변이(mutate).
+    // JSONB 로 저장되므로 이후 라운드 재로드 시에도 IF 값이 보존됨.
+    const enrichment = await enrichmentPromise
+    console.log(
+      `[M0 IF enrich] hits=${enrichment.hits} fetched=${enrichment.fetched} ` +
+      `errors=${enrichment.errors} in ${Date.now() - enrichStart}ms`,
+    )
+    for (const p of allPapers) {
+      if (!p.journal) {
+        p.impact_factor = null
+        continue
+      }
+      const v = enrichment.map[p.journal]
+      p.impact_factor = v === undefined ? null : v
     }
 
     const verMap = new Map(verifications.map((v) => [v.index, v]))
@@ -426,15 +542,20 @@ export function LiteratureDiscoveryPanel({
     if (savedIdsRef.current.has(paper.semanticId)) return
 
     const result = await createReferencePaper({
-      project_id: projectId,
-      title:      paper.title,
-      authors:    paper.authors,
-      journal:    paper.journal   ?? undefined,
-      year:       paper.year      ?? undefined,
-      doi:        paper.doi       ?? undefined,
-      abstract:   paper.abstract  ?? undefined,
-      status:     'unread',
-      tags:       [],
+      project_id:     projectId,
+      title:          paper.title,
+      authors:        paper.authors,
+      journal:        paper.journal   ?? undefined,
+      year:           paper.year      ?? undefined,
+      doi:            paper.doi       ?? undefined,
+      abstract:       paper.abstract  ?? undefined,
+      status:         'unread',
+      tags:           [],
+      // v19: 검색 시점의 지표를 영속화 — T 태깅 프롬프트에서 활용
+      //   - citation_count: 0 도 의미 있음(인용 적은 최신논문 ≠ 미수집) → 그대로 전달
+      //   - impact_factor:  `undefined`(보강 전 구 데이터)는 null 로 정규화
+      citation_count: paper.citation_count,
+      impact_factor:  paper.impact_factor ?? null,
     })
 
     if (result.success) {
@@ -516,8 +637,14 @@ export function LiteratureDiscoveryPanel({
   // ── DB 로딩 중 ───────────────────────────────────────────
   if (!dbLoaded) {
     return (
-      <div className="flex items-center gap-2 py-8 text-sm text-zinc-600">
-        <Spinner />이전 탐색 기록 불러오는 중…
+      <div className="flex flex-col items-start gap-3 py-8 text-sm text-zinc-600">
+        <div className="flex items-center gap-2">
+          <Spinner />이전 탐색 기록 불러오는 중…
+        </div>
+        <p className="text-[11px] text-zinc-700">
+          프로젝트 ID: <code className="text-zinc-600">{projectId.slice(0, 8)}…</code>
+          {' '}· 10초 내 응답 없으면 재시도 버튼이 나타납니다
+        </p>
       </div>
     )
   }
@@ -539,6 +666,25 @@ export function LiteratureDiscoveryPanel({
     <div className="flex gap-5 items-start">
       {/* ── Main column ─────────────────────────────────── */}
       <div className="flex flex-1 min-w-0 flex-col gap-5">
+        {/* Load error banner (DB 로드 실패 시) */}
+        {loadError && (
+          <div className="flex items-start gap-3 rounded-lg border border-amber-800/60 bg-amber-950/30 px-4 py-3 text-xs">
+            <span className="text-amber-400 mt-0.5">⚠</span>
+            <div className="flex-1">
+              <p className="text-amber-300 font-medium">{loadError}</p>
+              <p className="mt-1 text-amber-500/70 leading-snug">
+                빈 상태로 시작합니다. 네트워크·DB가 정상이면 재시도로 복구됩니다.
+              </p>
+            </div>
+            <button
+              onClick={() => setLoadAttempt((n) => n + 1)}
+              className="shrink-0 rounded border border-amber-700 px-2.5 py-1 text-[11px] text-amber-300 hover:bg-amber-900/40 transition-colors"
+            >
+              ↻ 재시도
+            </button>
+          </div>
+        )}
+
         {/* Research intent */}
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-5 py-3.5">
           <p className="text-xs font-medium text-zinc-500 mb-1">Research Intent</p>
@@ -577,6 +723,72 @@ export function LiteratureDiscoveryPanel({
             )}
           </div>
         )}
+
+        {/* ── IF 필터 (검색 전 미리 선택) ───────────────────
+             - null: 전체 저널 대상
+             - number: IF ≥ threshold 만 표시 (IF 미상 논문은 '?' 배지로 포함)
+             - 값은 localStorage 에 프로젝트별 지속.
+             - 검색 직후 enrichJournalImpactFactors 가 저널별 IF 를 보강하므로,
+               필터는 '검색 후 표시 단계' 에서 적용됨 (Semantic Scholar/OpenAlex
+               검색 API 는 IF 필터를 네이티브 지원하지 않음).
+             ─────────────────────────────────────────────── */}
+        <div className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-2.5 text-xs flex-wrap">
+          <span className="text-zinc-500 font-medium">저널 IF 필터</span>
+          <select
+            value={ifThreshold == null ? '' : String(ifThreshold)}
+            onChange={(e) => {
+              const v = e.target.value
+              if (v === '') {
+                setIfThreshold(null); setCustomIfInput('')
+              } else if (v === 'custom') {
+                // 드롭다운에서 custom 선택 시 입력 칸만 활성화
+                setCustomIfInput(ifThreshold != null ? String(ifThreshold) : '10')
+              } else {
+                setIfThreshold(Number(v)); setCustomIfInput('')
+              }
+            }}
+            className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-200 focus:border-indigo-500 focus:outline-none"
+          >
+            <option value="">전체</option>
+            <option value="5">IF ≥ 5</option>
+            <option value="10">IF ≥ 10</option>
+            <option value="15">IF ≥ 15</option>
+            <option value="20">IF ≥ 20</option>
+            <option value="custom">직접 입력…</option>
+          </select>
+
+          {/* 커스텀 임계값 입력 */}
+          {customIfInput !== '' && (
+            <div className="flex items-center gap-1">
+              <span className="text-zinc-500">IF ≥</span>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                value={customIfInput}
+                onChange={(e) => setCustomIfInput(e.target.value)}
+                onBlur={() => {
+                  const n = Number(customIfInput)
+                  if (Number.isFinite(n) && n > 0) setIfThreshold(n)
+                  else                             setIfThreshold(null)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                }}
+                className="w-16 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-200 focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+          )}
+
+          {ifThreshold != null && (
+            <span className="text-zinc-600">
+              · IF 미상 논문은 포함
+            </span>
+          )}
+          <span className="ml-auto text-[10px] text-zinc-700">
+            IF 소스: OpenAlex (공식 JCR 아님, 근사치)
+          </span>
+        </div>
 
         {/* Question generation */}
         <div className="flex items-center gap-3 flex-wrap">
@@ -859,6 +1071,7 @@ export function LiteratureDiscoveryPanel({
             round={round}
             roundNumber={roundIdx + 1}
             existingDois={existingDois}
+            ifThreshold={ifThreshold}
             onSavePaper={(paper) => handleSavePaper(round.id, paper)}
             onSaveAll={() => handleSaveAll(round.id)}
             onDelete={() => handleDeleteRound(round.id)}
@@ -985,6 +1198,8 @@ interface RoundCardProps {
   round:            SearchRound
   roundNumber:      number
   existingDois:     Set<string>
+  /** IF 임계값 (null = 필터 비활성). IF 미상 논문은 항상 포함. */
+  ifThreshold:      number | null
   onSavePaper:      (paper: FoundPaper) => void
   onSaveAll:        () => void
   onToggleExpand:   () => void
@@ -1000,7 +1215,8 @@ const MATCH_CONFIG: Record<PaperMatch, { label: string; dot: string; rowCls: str
 }
 
 function SearchRoundCard({
-  round, roundNumber, existingDois, onSavePaper, onSaveAll, onToggleExpand, onToggleUnrelated, onRetry, onDelete,
+  round, roundNumber, existingDois, ifThreshold,
+  onSavePaper, onSaveAll, onToggleExpand, onToggleUnrelated, onRetry, onDelete,
 }: RoundCardProps) {
   const verified    = round.verifications.size > 0
   const directCount = verified
@@ -1009,7 +1225,28 @@ function SearchRoundCard({
   const unrelatedCount = verified
     ? round.papers.filter((_, i) => round.verifications.get(i)?.match === 'unrelated').length
     : 0
-  const visiblePapers = round.papers.filter((_, i) => {
+
+  /**
+   * IF 필터 통과 판정.
+   * - threshold=null: 무조건 통과
+   * - impact_factor 가 숫자: value >= threshold 인지
+   * - impact_factor 가 null/undefined: 포함 (IF 미상도 표시)
+   */
+  const passesIfFilter = (p: FoundPaper): boolean => {
+    if (ifThreshold == null) return true
+    if (typeof p.impact_factor !== 'number') return true
+    return p.impact_factor >= ifThreshold
+  }
+
+  // IF 필터로 탈락하는 건수 (사용자에게 "N편 숨김" 안내용)
+  const ifFilteredCount = ifThreshold == null
+    ? 0
+    : round.papers.filter((p) =>
+        typeof p.impact_factor === 'number' && p.impact_factor < ifThreshold,
+      ).length
+
+  const visiblePapers = round.papers.filter((p, i) => {
+    if (!passesIfFilter(p)) return false
     if (!verified || round.showUnrelated) return true
     return round.verifications.get(i)?.match !== 'unrelated'
   })
@@ -1127,7 +1364,7 @@ function SearchRoundCard({
             <>
               {/* 상단 바: 저장 + unrelated 토글 */}
               <div className="flex items-center justify-between border-b border-zinc-800/60 bg-zinc-900/40 px-4 py-2 gap-3">
-                <div className="flex items-center gap-3 text-xs text-zinc-500">
+                <div className="flex items-center gap-3 text-xs text-zinc-500 flex-wrap">
                   {newCount > 0 && <span>{newCount}편 미저장</span>}
                   {unrelatedCount > 0 && (
                     <button
@@ -1138,6 +1375,14 @@ function SearchRoundCard({
                         ? `관련 없음 ${unrelatedCount}편 숨기기`
                         : `관련 없음 ${unrelatedCount}편 표시`}
                     </button>
+                  )}
+                  {ifFilteredCount > 0 && (
+                    <span
+                      className="text-zinc-600"
+                      title={`IF < ${ifThreshold} 저널 논문을 필터링했습니다. 상단의 'IF 필터'를 '전체'로 바꾸면 해제됩니다.`}
+                    >
+                      IF &lt; {ifThreshold} 으로 {ifFilteredCount}편 숨김
+                    </span>
                   )}
                 </div>
                 {newCount > 0 && (
@@ -1225,6 +1470,25 @@ function PaperRow({ paper, verification, alreadyInDb, savedNow, onSave }: PaperR
                 <span>{paper.authors.slice(0, 2).join(', ')}{paper.authors.length > 2 ? ' 외' : ''}</span>
               )}
               {paper.journal && <span>· {paper.journal}</span>}
+              {/* IF 배지 — 세 상태:
+                  - number: 보강 성공, 값 표시
+                  - null:   보강 시도했으나 OpenAlex 매칭 없음 → 'IF ?' (연한 회색)
+                  - undefined: 구 데이터(보강 이전 라운드) — 표시 생략으로 하위호환 */}
+              {typeof paper.impact_factor === 'number' ? (
+                <span
+                  className="font-medium text-indigo-400/80"
+                  title="OpenAlex 저널 메타데이터 기반 (공식 JCR IF 아님, 근사치)"
+                >
+                  · IF {paper.impact_factor.toFixed(1)}
+                </span>
+              ) : paper.impact_factor === null ? (
+                <span
+                  className="text-zinc-700"
+                  title="OpenAlex 에 해당 저널 IF 데이터가 없습니다."
+                >
+                  · IF ?
+                </span>
+              ) : null}
               {paper.year    && <span className="font-medium text-zinc-500">· {paper.year}</span>}
               {paper.citation_count > 0 && (
                 <span>· 인용 {paper.citation_count.toLocaleString()}</span>

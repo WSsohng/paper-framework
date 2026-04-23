@@ -163,6 +163,9 @@ create table if not exists reference_papers (
   concepts        text[]      not null default '{}',
   relevance_score float       check (relevance_score >= 0 and relevance_score <= 1),
   priority_score  float       check (priority_score  >= 0 and priority_score  <= 100),
+  -- v19: 검색 소스에서 수집한 품질 지표 (T 태깅·IF 필터 활용)
+  citation_count  integer,
+  impact_factor   numeric(6,3),
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
 );

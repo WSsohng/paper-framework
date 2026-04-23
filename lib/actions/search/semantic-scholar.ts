@@ -12,6 +12,13 @@ export interface FoundPaper {
   open_access_url: string | null
   paper_url:       string | null
   is_review:       boolean   // 리뷰/서베이 논문 여부
+  /**
+   * 저널 Impact Factor (M0 IF 필터용).
+   * - `undefined`: 아직 보강 미수행 (검색 직후 상태)
+   * - `null`:      보강 시도했지만 OpenAlex 에 매칭되는 저널 없음 → UI 에서 'IF ?' 배지
+   * - `number`:    OpenAlex `impact_factor` 또는 `2yr_mean_citedness` (근사)
+   */
+  impact_factor?:  number | null
 }
 
 export type PaperSearchResult =

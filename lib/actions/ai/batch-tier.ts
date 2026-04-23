@@ -28,9 +28,11 @@ export async function batchClassifyTiers(
 ): Promise<ActionResult<{ processed: number; skipped: number }>> {
   const supabase = await createClient()
 
+  // v19: citation_count, impact_factor 두 컬럼 추가 이후 스키마 기반으로 SELECT.
+  //      값이 없는 구 레코드는 NULL 로 내려오며 프롬프트에서 '불명' 처리됨.
   const query = supabase
     .from('reference_papers')
-    .select('id, title, journal, year, abstract, notes, citation_count')
+    .select('id, title, journal, year, abstract, notes, citation_count, impact_factor')
     .eq('project_id', projectId)
 
   if (!forceAll) {
@@ -55,6 +57,7 @@ export async function batchClassifyTiers(
       id:             p.id,
       title:          p.title,
       journal:        p.journal ?? '불명',
+      impact_factor:  p.impact_factor ?? null,
       year:           p.year ?? null,
       citation_count: p.citation_count ?? null,
       abstract:       p.abstract ? p.abstract.slice(0, 300) : (p.notes?.slice(0, 200) ?? null),
@@ -67,12 +70,15 @@ export async function batchClassifyTiers(
 ${researchIntent}
 
 [평가 기준]
-T1 (핵심): 분야 최상위 저널(Nature/Science/Cell 계열, IF>10), 높은 인용수(200↑), 연구에 직접 필수적
+T1 (핵심): 분야 최상위 저널(Nature/Science/Cell 계열, IF≥10), 높은 인용수(200↑), 연구에 직접 필수적
 T2 (주요): 좋은 전문 저널(IF 3~10), 적당한 인용수(50~200), 중요 참고문헌
 T3 (배경): 그 외 저널 또는 인용수 낮음, 배경지식·간접 참고용
 
-⚠ 주의: 인용수와 저널 수준이 없으면 제목·초록·주제로 상대적으로 판단하세요.
-  동일 배치 내에서 상대적 중요도를 비교해 배정해도 됩니다.
+데이터 해석 규칙:
+- impact_factor 는 OpenAlex 기반 근사치(공식 JCR 아님). ±20% 오차 가정하고 경계값에서는 저널명·인용수를 병행 확인.
+- impact_factor=null 이거나 citation_count=null 이면 "데이터 없음" 으로 취급하고 제목·초록·저널명·주제로 상대 판단.
+- 최근 3년 내 논문은 인용수가 누적될 시간이 부족하므로 인용수 임계값을 완화해 해석.
+- 동일 배치 내에서 상대적 중요도를 비교해 배정해도 됨.
 
 [논문 목록]
 ${JSON.stringify(paperList, null, 2)}

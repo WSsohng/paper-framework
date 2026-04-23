@@ -4,7 +4,7 @@ import { generateJson } from '@/lib/ai/generate'
 import { AIContextBuilder } from '@/lib/ai/context-builder'
 import { composePrompt } from '@/lib/ai/prompt-composer'
 import type { PaperVerification } from './verify-papers'
-import type { FoundPaper } from '@/lib/actions/search/search-papers'
+import type { FoundPaper } from '@/lib/actions/search/semantic-scholar'
 
 export interface SearchResultGroup {
   search_id: string

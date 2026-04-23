@@ -241,6 +241,18 @@ function composePrompt(task: PromptTask, ctx: PromptContext): string
 
 각 Phase 완료 시 이 표를 업데이트하고 브랜치/PR 링크를 기입한다.
 
+### 부수 UX 개선 (로드맵 외 핫픽스)
+
+Phase 2A 진행 중 발견·반영된 UX 개선. 별도 Phase 가 아니라 main 직접 커밋.
+
+| 주제 | 결정 | 산출물 |
+|---|---|---|
+| M0 가이드 활성 스텝 버그 | discovery_rounds 0개 → Step 1 고정 | `app/(app)/reference-papers/page.tsx` |
+| M0 탐색 기록 로딩 무한 대기 | 10s 타임아웃 + 재시도 UI | `components/module0/literature-discovery-panel.tsx` |
+| M0 use-server 제약 위반 | 타입·상수 분리 | `lib/types/research-questions.ts` 등 |
+| M2 자산 추출 다이얼로그 레이아웃 | min-h-0/max-w-2xl/break-words | `components/module2/asset-insight-button.tsx` |
+| **M0 저널 IF 필터 (2026-04-18)** | OpenAlex citedness 근사 + 사전 preset + IF 미상 포함 | `supabase/migration-v18.sql`, `lib/actions/search/journal-if-cache.ts`, `lib/types/journal-if.ts`, `FoundPaper.impact_factor`, `LiteratureDiscoveryPanel` |
+
 ---
 
 ## Phase 0 결정 사항 (2026-04-18 사용자 확정)
