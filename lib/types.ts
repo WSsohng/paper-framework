@@ -147,6 +147,10 @@ export interface ReferencePaper {
   relevance_score: number | null
   /** 우선순위 점수: tier(45%) + 최신성(15%) + 관련도(40%), 0–100 */
   priority_score: number | null
+  /** 논문 인용수 (Semantic Scholar/OpenAlex). null = 미수집 */
+  citation_count: number | null
+  /** 저널 IF 근사값 (OpenAlex). 공식 JCR 아님. null = 미수집 */
+  impact_factor: number | null
   created_at: string
   updated_at: string
   // joined
@@ -165,6 +169,10 @@ export interface ReferencePaperInput {
   status?: PaperStatus
   tier?: PaperTier | null
   tags?: string[]
+  /** 논문 인용수 (검색 시점에 FoundPaper.citation_count 에서 전달) */
+  citation_count?: number | null
+  /** 저널 IF 근사값 (검색 시점에 FoundPaper.impact_factor 에서 전달) */
+  impact_factor?: number | null
 }
 
 // ── Module 0: Track-Paper Relevance (junction) ───────────

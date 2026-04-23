@@ -35,17 +35,20 @@ export async function createReferencePaper(
   const { data, error } = await supabase
     .from('reference_papers')
     .insert({
-      project_id: input.project_id,
-      title:      input.title,
-      authors:    input.authors   ?? [],
-      journal:    input.journal   ?? null,
-      year:       input.year      ?? null,
-      doi:        input.doi       ?? null,
-      abstract:   input.abstract  ?? null,
-      notes:      input.notes     ?? null,
-      status:     input.status    ?? 'unread',
-      tier:       input.tier      ?? null,
-      tags:       input.tags      ?? [],
+      project_id:     input.project_id,
+      title:          input.title,
+      authors:        input.authors        ?? [],
+      journal:        input.journal        ?? null,
+      year:           input.year           ?? null,
+      doi:            input.doi            ?? null,
+      abstract:       input.abstract       ?? null,
+      notes:          input.notes          ?? null,
+      status:         input.status         ?? 'unread',
+      tier:           input.tier           ?? null,
+      tags:           input.tags           ?? [],
+      // v19: 인용수 + IF — T 태깅과 IF 필터용
+      citation_count: input.citation_count ?? null,
+      impact_factor:  input.impact_factor  ?? null,
     })
     .select()
     .single()

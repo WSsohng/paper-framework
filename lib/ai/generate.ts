@@ -72,17 +72,57 @@ export async function generateJson<T>(
     maxTokens?: number
   },
 ): Promise<T> {
-  if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY === 'your-anthropic-api-key-here') {
+  const t0 = Date.now()
+  const feature = opts?.meta?.feature ?? 'unknown'
+  const key = process.env.ANTHROPIC_API_KEY ?? ''
+  const keyPreview = key
+    ? `${key.slice(0, 14)}…${key.slice(-4)} (len=${key.length})`
+    : '(empty)'
+
+  if (!key || key === 'your-anthropic-api-key-here') {
+    console.error(
+      `[generateJson] feature=${feature} 키 누락/placeholder. env=${keyPreview}`,
+    )
     throw new Error('AI API 키가 설정되지 않았습니다. ANTHROPIC_API_KEY를 설정하세요.')
   }
 
+  console.log(
+    `[generateJson] start feature=${feature} key=${keyPreview} ` +
+    `promptLen=${prompt.length} temp=${temperature} maxTokens=${opts?.maxTokens ?? 2048}`,
+  )
+
   const fullPrompt = opts?.skipFrameworkProtocol ? prompt : withFrameworkProtocol(prompt)
 
-  // Phase 3-pre: pre-call 예산 체크. 프로젝트 ID가 있고 env 우회 플래그가 없을 때만 수행.
-  // hard_limit_enabled=true 이면서 한도 초과 예상 시 throw. 그 외에는 console.warn.
-  await enforceBudget(opts?.meta?.projectId, fullPrompt, opts?.maxTokens ?? 2048, opts?.meta?.feature)
+  try {
+    await enforceBudget(opts?.meta?.projectId, fullPrompt, opts?.maxTokens ?? 2048, opts?.meta?.feature)
+  } catch (err) {
+    console.error(
+      `[generateJson] feature=${feature} 예산 체크 throw after ${Date.now() - t0}ms:`,
+      err,
+    )
+    throw err
+  }
 
-  const { text, usage } = await callClaude(fullPrompt, temperature, opts?.maxTokens)
+  const tBeforeClaude = Date.now()
+  let text: string, usage: TokenUsage
+  try {
+    const r = await callClaude(fullPrompt, temperature, opts?.maxTokens)
+    text  = r.text
+    usage = r.usage
+  } catch (err) {
+    console.error(
+      `[generateJson] feature=${feature} Claude 호출 실패 after ` +
+      `${Date.now() - tBeforeClaude}ms (total ${Date.now() - t0}ms):`,
+      err,
+    )
+    throw err
+  }
+
+  console.log(
+    `[generateJson] done feature=${feature} ` +
+    `in=${usage.input_tokens}t out=${usage.output_tokens}t ` +
+    `claudeTook=${Date.now() - tBeforeClaude}ms total=${Date.now() - t0}ms`,
+  )
 
   if (opts?.meta) {
     logUsage({ ...usage, ...opts.meta }).catch(() => {})

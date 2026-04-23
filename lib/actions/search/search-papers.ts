@@ -11,8 +11,11 @@
 import { searchPapers       as searchSS,       type SearchOptions, type PaperSearchResult } from './semantic-scholar'
 import { searchPapersOpenAlex                  } from './openalex'
 
-export type { SearchOptions, PaperSearchResult } from './semantic-scholar'
-export type { FoundPaper                        } from './semantic-scholar'
+// NOTE: 타입 re-export 는 Turbopack 의 'use server' 파서 버그로 런타임
+//   ReferenceError 를 유발하므로 제거한다. consumer 는 다음 경로에서 직접
+//   import 할 것:
+//     import type { FoundPaper, SearchOptions, PaperSearchResult }
+//       from '@/lib/actions/search/semantic-scholar'
 
 function getProvider(): 'semantic_scholar' | 'openalex' {
   const explicit = process.env.SEARCH_PROVIDER

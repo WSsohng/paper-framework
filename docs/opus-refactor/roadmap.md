@@ -231,7 +231,7 @@ function composePrompt(task: PromptTask, ctx: PromptContext): string
 | 0. 온보딩·진단 | **merged** | `refactor/phase-0-baseline` | local merge `49bf7ea` | 확정 게이트 통과 2026-04-18 |
 | 1. papers 통합 | **merged** | `refactor/phase-1-papers-consolidation` | local merge `8793c3c` | migration-v15 포함 |
 | 3-pre. 예산 경량 | **merged** | `refactor/phase-3-pre-budget` | local merge `13333cd` | migration-v16, v17 포함. Q1/Q2/Q3 결정 반영 |
-| 2A. 프롬프트 빌더 | **next** | — | — | 3-pre 완료. 착수 대상 |
+| 2A. 프롬프트 빌더 | **review** | `refactor/phase-2a-prompt-builder` | 로컬 머지 대기 | C1~C7 구현 완료. 스냅샷·가이드 포함 |
 | 2B. 플로우 맵 | pending | — | — | 2A와 병렬 가능 |
 | 3-full. 예산 UI | pending | — | — | 2A 이후 |
 | 4. M3→M5→M4 자동화 | pending | — | — | Discovery→Asset 자동화 포함 |
@@ -240,6 +240,18 @@ function composePrompt(task: PromptTask, ctx: PromptContext): string
 > **워크플로**: 사용자 결정(2026-04-18)으로 PR 미사용. 로컬 `--no-ff` 머지 후 `main` 직접 푸시.
 
 각 Phase 완료 시 이 표를 업데이트하고 브랜치/PR 링크를 기입한다.
+
+### 부수 UX 개선 (로드맵 외 핫픽스)
+
+Phase 2A 진행 중 발견·반영된 UX 개선. 별도 Phase 가 아니라 main 직접 커밋.
+
+| 주제 | 결정 | 산출물 |
+|---|---|---|
+| M0 가이드 활성 스텝 버그 | discovery_rounds 0개 → Step 1 고정 | `app/(app)/reference-papers/page.tsx` |
+| M0 탐색 기록 로딩 무한 대기 | 10s 타임아웃 + 재시도 UI | `components/module0/literature-discovery-panel.tsx` |
+| M0 use-server 제약 위반 | 타입·상수 분리 | `lib/types/research-questions.ts` 등 |
+| M2 자산 추출 다이얼로그 레이아웃 | min-h-0/max-w-2xl/break-words | `components/module2/asset-insight-button.tsx` |
+| **M0 저널 IF 필터 (2026-04-18)** | OpenAlex citedness 근사 + 사전 preset + IF 미상 포함 | `supabase/migration-v18.sql`, `lib/actions/search/journal-if-cache.ts`, `lib/types/journal-if.ts`, `FoundPaper.impact_factor`, `LiteratureDiscoveryPanel` |
 
 ---
 

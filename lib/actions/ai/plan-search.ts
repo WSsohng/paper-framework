@@ -1,10 +1,16 @@
 'use server'
 
+/**
+ * 중요: Turbopack (Next.js 16) 은 `'use server'` 파일에서 타입 re-export
+ *   (`export type { ... }`) 조차 런타임 바인딩으로 해석해 `ReferenceError`
+ *   를 발생시킨다. 따라서 이 파일에서는 **async 함수만** export 하고,
+ *   SearchPlan 등 타입은 consumer 가 `@/lib/types/search-plan` 에서 직접
+ *   import 해야 한다.
+ */
+
 import { generateJson } from '@/lib/ai/generate'
 import type { ActionResult } from '@/lib/types'
-import type { SearchQuery, SearchQueryType, SearchPlan } from '@/lib/types/search-plan'
-
-export type { SearchQuery, SearchQueryType, SearchPlan }
+import type { SearchPlan, SearchQuery, SearchQueryType } from '@/lib/types/search-plan'
 
 // ── 액션 ──────────────────────────────────────────────────
 

@@ -98,10 +98,14 @@ export function AssetInsightButton({ projectId, referencePapers, existingAssetTi
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
-          <div className="relative z-10 flex w-full max-w-xl flex-col rounded-xl border border-zinc-700 bg-zinc-950 shadow-2xl"
-               style={{ maxHeight: '85vh' }}>
+          {/*
+            min-h-0: flex 자식의 overflow-y-auto 가 제대로 동작하도록 필수
+            max-w-2xl: 이전 xl(576px) 은 한글 인사이트 본문 가독성·줄바꿈이 좁았음
+            max-h-[85vh]: 매우 작은 화면에서도 footer 까지 보이도록 강제 수직 제한
+          */}
+          <div className="relative z-10 flex w-full max-w-2xl min-h-0 flex-col overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950 shadow-2xl max-h-[85vh]">
             {/* 헤더 */}
             <div className="shrink-0 border-b border-zinc-800 px-6 py-4">
               <div className="flex items-start justify-between gap-3">
@@ -118,11 +122,12 @@ export function AssetInsightButton({ projectId, referencePapers, existingAssetTi
             {/* 논문 선택 */}
             <div className="shrink-0 px-6 py-4 border-b border-zinc-800">
               <label className="block text-xs font-medium text-zinc-400 mb-1.5">분석할 참고문헌 선택</label>
+              {/* min-w-0 on select: 긴 옵션 텍스트가 버튼을 오른쪽으로 밀어내는 걸 차단 */}
               <div className="flex gap-2">
                 <select
                   value={selectedPaperId}
                   onChange={(e) => { setSelected(e.target.value); setInsights([]); setError(null) }}
-                  className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
+                  className="flex-1 min-w-0 rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
                 >
                   <option value="">— 논문을 선택하세요</option>
                   {referencePapers.map((p) => (
@@ -149,7 +154,9 @@ export function AssetInsightButton({ projectId, referencePapers, existingAssetTi
 
             {/* 결과 목록 */}
             {insights.length > 0 && (
-              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
+              // min-h-0: flex-1 + overflow-y-auto 조합이 부모를 넘어 밀지 않도록 필수.
+              //         빠지면 긴 리스트일 때 footer(저장 버튼)가 85vh 아래로 잘림.
+              <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-2">
                 {insights.map((ins, i) => {
                   const isChecked = checkedIdx.has(i)
                   const isSaved   = savedIdx.has(i)
@@ -175,18 +182,19 @@ export function AssetInsightButton({ projectId, referencePapers, existingAssetTi
                           )}
                         </div>
 
-                        <div className="flex-1 min-w-0">
+                        {/* min-w-0 + break-words: 긴 영문/URL 이 카드 밖으로 밀어내는 걸 차단 */}
+                        <div className="flex-1 min-w-0 break-words">
                           <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                            <span className="text-xs font-medium text-zinc-200">{ins.title}</span>
-                            <span className="rounded-full border border-zinc-700/50 bg-zinc-800/50 px-1.5 py-0.5 text-[10px] text-zinc-500">
+                            <span className="text-xs font-medium text-zinc-200 break-words">{ins.title}</span>
+                            <span className="rounded-full border border-zinc-700/50 bg-zinc-800/50 px-1.5 py-0.5 text-[10px] text-zinc-500 shrink-0">
                               {ASSET_SECTION_LABELS[ins.paper_section] ?? ins.paper_section}
                             </span>
-                            <span className="text-[10px] text-zinc-700">
+                            <span className="text-[10px] text-zinc-700 shrink-0">
                               {ins.type === 'quote' ? '인용구' : '메모'}
                             </span>
                           </div>
-                          <p className="text-xs text-zinc-400 leading-relaxed">{ins.content}</p>
-                          <p className="mt-1 text-[10px] text-zinc-600 leading-relaxed">💡 {ins.reason}</p>
+                          <p className="text-xs text-zinc-400 leading-relaxed break-words whitespace-pre-wrap">{ins.content}</p>
+                          <p className="mt-1 text-[10px] text-zinc-600 leading-relaxed break-words">💡 {ins.reason}</p>
                         </div>
                       </div>
                     </div>

@@ -2,9 +2,9 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import type { FoundPaper } from '@/lib/actions/search/search-papers'
+import type { FoundPaper } from '@/lib/actions/search/semantic-scholar'
 import type { PaperVerification } from '@/lib/actions/ai/verify-papers'
-import type { SearchPlan } from '@/lib/actions/ai/plan-search'
+import type { SearchPlan } from '@/lib/types/search-plan'
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -28,15 +28,34 @@ export interface DiscoveryRoundRow {
 export async function getDiscoveryRounds(
   projectId: string,
 ): Promise<DiscoveryRoundRow[]> {
+  const t0 = Date.now()
   const supabase = await createClient()
+  const tSupa = Date.now() - t0
+
   const { data, error } = await supabase
     .from('discovery_rounds')
     .select('*')
     .eq('project_id', projectId)
     .order('created_at', { ascending: true })
 
-  if (error) { console.error('getDiscoveryRounds:', error); return [] }
-  return (data ?? []) as DiscoveryRoundRow[]
+  const tQuery = Date.now() - t0
+
+  if (error) {
+    console.error(
+      `[getDiscoveryRounds] project=${projectId.slice(0, 8)} FAILED after ${tQuery}ms:`,
+      error,
+    )
+    return []
+  }
+
+  const rows = (data ?? []) as DiscoveryRoundRow[]
+  const bytes = JSON.stringify(rows).length
+  console.log(
+    `[getDiscoveryRounds] project=${projectId.slice(0, 8)} rows=${rows.length} ` +
+    `payload=${(bytes / 1024).toFixed(1)}KB supaInit=${tSupa}ms total=${tQuery}ms`,
+  )
+
+  return rows
 }
 
 // ── Create ─────────────────────────────────────────────────

@@ -1,62 +1,22 @@
 'use server'
 
+/**
+ * AI 연구 질문 생성 서버 액션.
+ *
+ * 중요: 이 파일은 `'use server'` 이므로 **async 함수만** export 할 수 있다.
+ * 타입·상수(DOMAIN_LABEL 등)는 `lib/types/research-questions.ts` 에 있다.
+ * 상수를 이 파일에 추가하면 Turbopack 이 모듈 로드를 실패시킨다:
+ *   `A "use server" file can only export async functions, found object.`
+ */
+
 import { generateJson } from '@/lib/ai/generate'
-
-// ── 타입 ──────────────────────────────────────────────────
-
-/** 질문이 커버하는 도메인 영역 */
-export type QuestionDomain =
-  | 'tech'          // 기술 도메인: AI/ML 기법, 아키텍처
-  | 'application'   // 응용 도메인: 타겟 분야의 현재 방법론·과제
-  | 'intersection'  // 교차점: 기술이 타겟 분야에 적용된 현황
-  | 'methodology'   // 평가·벤치마크·데이터셋
-  | 'frontier'      // 최신 동향·미해결 과제
-
-export interface ResearchQuestion {
-  question:      string          // 실제 검색에 쓸 영문 질문
-  angle:         string          // 전략적 관점 레이블 (Korean, ≤10 chars)
-  focus:         string          // 이 질문이 탐색하는 인사이트 (Korean, 1 sentence)
-  domain:        QuestionDomain  // 어느 영역을 커버하는가
-  coverage_note: string          // 왜 이 질문이 지금 필요한가 (Korean, 1 sentence)
-}
-
-export interface SearchHistoryItem {
-  question:     string
-  paperTitles:  string[]
-  user_insight: string | null
-}
-
-/** 현재 커버리지 상태 — UI에 표시해서 연구자가 부족한 부분을 인식하게 함 */
-export interface CoverageMap {
-  tech:         number   // 탐색 횟수
-  application:  number
-  intersection: number
-  methodology:  number
-  frontier:     number
-  thin_areas:   QuestionDomain[]    // 아직 부족한 영역
-  summary:      string              // 한 문장 요약 (Korean)
-}
-
-export type QuestionResult =
-  | { success: true;  data: ResearchQuestion[]; coverage?: CoverageMap }
-  | { success: false; error: string }
-
-// ── 도메인 레이블 (UI) ────────────────────────────────────
-export const DOMAIN_LABEL: Record<QuestionDomain, string> = {
-  tech:         'AI 기법',
-  application:  '응용 분야',
-  intersection: '교차 적용',
-  methodology:  '방법론·평가',
-  frontier:     '최신 동향',
-}
-
-export const DOMAIN_COLOR: Record<QuestionDomain, string> = {
-  tech:         'bg-violet-900/40 text-violet-300',
-  application:  'bg-teal-900/40 text-teal-300',
-  intersection: 'bg-blue-900/40 text-blue-300',
-  methodology:  'bg-amber-900/40 text-amber-300',
-  frontier:     'bg-rose-900/40 text-rose-300',
-}
+import type {
+  QuestionDomain,
+  ResearchQuestion,
+  SearchHistoryItem,
+  CoverageMap,
+  QuestionResult,
+} from '@/lib/types/research-questions'
 
 // ── 메인 액션 ─────────────────────────────────────────────
 
@@ -158,6 +118,7 @@ No markdown, pure JSON only.`
       return { success: false, error: 'API 요청 한도에 도달했습니다. 30초 후 다시 시도해 주세요.' }
     }
     const msg = err instanceof Error ? err.message : String(err)
+    console.error('[generateResearchQuestions] 실패:', msg, err)
     return { success: false, error: msg }
   }
 }

@@ -1,6 +1,8 @@
 'use server'
 
 import { generateJson } from '@/lib/ai/generate'
+import { AIContextBuilder } from '@/lib/ai/context-builder'
+import { composePrompt } from '@/lib/ai/prompt-composer'
 
 export interface TopicRecommendation {
   title:                string   // specific, publishable paper title
@@ -29,9 +31,10 @@ export async function recommendTopics(
   projectName:        string,
   researchIntent:     string,
   poolPapers:         PoolPaper[],
-  userInsights?:      string[],   // accumulated researcher insights
-  researchQuestions?: string[],   // questions explored so far (M0 rounds)
+  userInsights?:      string[],
+  researchQuestions?: string[],
 ): Promise<TopicResult> {
+  // Pool literature를 렌더링 (caller 가 직접 제공하는 파라미터 — DB 조회 없음)
   const paperList = poolPapers
     .slice(0, 80)
     .map((p, i) => {
@@ -42,40 +45,47 @@ export async function recommendTopics(
     })
     .join('\n\n')
 
-  const insightsSection =
-    userInsights && userInsights.length > 0
-      ? `\nResearcher Insights (human expert intuition — let these guide topic selection):\n${userInsights.map((ins, i) => `${i + 1}. "${ins}"`).join('\n')}\n`
-      : ''
+  const builder = new AIContextBuilder({ lang: 'en' })
+    .withCustom({
+      id:    'project_meta',
+      title: 'Project',
+      body:  `Name: ${projectName}\nResearch Intent: ${researchIntent}`,
+    })
 
-  const questionsSection =
-    researchQuestions && researchQuestions.length > 0
-      ? `\nResearch Questions Explored So Far (reflect the researcher's thought trajectory):\n${researchQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}\n`
-      : ''
+  if (researchQuestions && researchQuestions.length) {
+    builder.withUserInsights(
+      researchQuestions,
+      'Research Questions Explored So Far (reflect the researcher\'s thought trajectory)',
+    )
+  }
+  if (userInsights && userInsights.length) {
+    builder.withUserInsights(
+      userInsights,
+      'Researcher Insights (human expert intuition — let these guide topic selection)',
+    )
+  }
 
-  const prompt = `You are an expert academic research strategist. Identify 4 publishable paper topics from the given literature pool.
+  builder.withCustom({
+    id:    'literature_pool',
+    title: `Literature Pool (${poolPapers.length} papers, [direct] = highly relevant)`,
+    body:  paperList,
+  })
 
-Project: ${projectName}
-Research Intent: ${researchIntent}
-${questionsSection}${insightsSection}
-Literature Pool (${poolPapers.length} papers, [direct] = highly relevant):
-${paperList}
+  const { sections } = await builder.build()
 
-Follow this 3-step reasoning process internally (do NOT output the steps, only the final JSON):
-
-STEP 1 — MAP THE LANDSCAPE
-Identify clusters, dominant methods, key debates, and obvious white spaces in the pool.
-Pay special attention to [direct]-tagged papers — they represent what the researcher found most relevant.
-
-STEP 2 — FIND DEFENSIBLE GAPS
-Cross-reference the research questions explored so far with the landscape map.
-Identify gaps that: (a) are not covered by existing papers, (b) align with the researcher's trajectory, (c) could be addressed with the methods visible in the pool.
-
-STEP 3 — DRAFT 4 PUBLISHABLE TOPICS
-For each topic ensure: a concrete hypothesis, a novel angle, a clear gap, and a reason a top journal would accept it.
-
-Return ONLY a valid JSON array of exactly 4 objects:
-[
-  {
+  const prompt = composePrompt(
+    {
+      lang:      'en',
+      role:      'You are an expert academic research strategist.',
+      objective: 'Identify 4 publishable paper topics from the given literature pool.',
+      reasoning: [
+        'STEP 1 — MAP THE LANDSCAPE: identify clusters, dominant methods, key debates, and obvious white spaces. Pay special attention to [direct]-tagged papers — they represent what the researcher found most relevant.',
+        'STEP 2 — FIND DEFENSIBLE GAPS: cross-reference the research questions explored so far with the landscape map. Identify gaps that (a) are not covered by existing papers, (b) align with the researcher\'s trajectory, (c) could be addressed with the methods visible in the pool.',
+        'STEP 3 — DRAFT 4 PUBLISHABLE TOPICS: for each topic ensure a concrete hypothesis, a novel angle, a clear gap, and a reason a top journal would accept it.',
+      ],
+      output: {
+        kind:  'array',
+        shape: `{
     "title": "Specific publishable paper title",
     "angle": "핵심 전략 관점 (Korean, max 15 chars)",
     "gap": "이 논문이 채우는 연구 공백 (Korean, 2 sentences)",
@@ -83,13 +93,18 @@ Return ONLY a valid JSON array of exactly 4 objects:
     "acceptance_rationale": "상위 저널이 이 논문을 채택할 이유 (Korean, 1 sentence)",
     "supporting_count": 12,
     "confidence": 85
-  }
-]
-
-Order by confidence descending. No markdown — pure JSON only.`
+  }`,
+        count:   { exact: 4 },
+        orderBy: 'confidence descending',
+      },
+    },
+    { sections },
+  )
 
   try {
-    const list = await generateJson<TopicRecommendation[]>(prompt, 0.5, { meta: { feature: 'topic_recommendation' } })
+    const list = await generateJson<TopicRecommendation[]>(prompt, 0.5, {
+      meta: { feature: 'topic_recommendation' },
+    })
     if (!Array.isArray(list) || !list.length) {
       return { success: false, error: '주제 추천 실패. 다시 시도해 주세요.' }
     }
