@@ -5,6 +5,7 @@ import { getTrack } from '@/lib/actions/tracks'
 import { getTrackRelevances } from '@/lib/actions/reference-paper-tracks'
 import { getSelectedProjectId } from '@/lib/selected-project'
 import { getSelectedTrackId } from '@/lib/selected-track'
+import { createClient } from '@/lib/supabase/server'
 import { PaperStatusBadge, PaperTierBadge, PriorityScoreBadge, TagBadge, PAPER_TIER_DESC } from '@/components/ui/badge'
 import { ReferencePaperDialog } from '@/components/module0/reference-paper-dialog'
 import { LiteratureDiscoveryPanel } from '@/components/module0/literature-discovery-panel'
@@ -45,11 +46,19 @@ export default async function ReferencePapersPage({
     )
   }
 
-  const [papers, project, selectedTrack, trackRelevances] = await Promise.all([
+  const supabase = await createClient()
+
+  const [papers, project, selectedTrack, trackRelevances, discoveryRoundsCount] = await Promise.all([
     getReferencePapers(selectedProjectId),
     getProject(selectedProjectId),
     selectedTrackId ? getTrack(selectedTrackId) : Promise.resolve(null),
     selectedTrackId ? getTrackRelevances(selectedProjectId, selectedTrackId) : Promise.resolve([]),
+    // M0 가이드 활성 스텝 계산용: 프로젝트의 탐색 라운드 수 (질문 생성 여부)
+    supabase
+      .from('discovery_rounds')
+      .select('id', { count: 'exact', head: true })
+      .eq('project_id', selectedProjectId)
+      .then((r) => r.count ?? 0),
   ])
 
   // R레벨 맵: paperId → TrackRelevance (트랙 선택 시만 의미있음)
@@ -151,10 +160,19 @@ export default async function ReferencePapersPage({
       </div>
 
       {/* M0 가이드 바 */}
+      {/*
+        활성 스텝 매핑 (M0 steps: 0=Intent, 1=질문 생성, 2=질문 선택+인사이트,
+                       3=논문 검색, 4=논문 저장·티어, 5=후속 질문, 6=주제 추천)
+        - research_intent 없음       → 0
+        - 질문 생성 라운드 0개        → 1  (새 프로젝트 기본 진입점)
+        - 라운드는 있으나 papers < 3 → 2~4 범위 (질문 선택/검색/저장 반복)
+        - papers ≥ 3 & T1 < 1       → 4 (티어 분류)
+      */}
       <ModuleGuideBar
         moduleTag="M0"
         activeStepIndex={
           !project?.research_intent ? 0 :
+          discoveryRoundsCount === 0 ? 1 :
           papers.length < 3          ? 2 :
           tier1Papers.length < 1     ? 4 :
           undefined
