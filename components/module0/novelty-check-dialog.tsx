@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { TopicRecommendation } from '@/lib/actions/ai/topic-recommendations'
+import type { TopicRecommendation, PoolPaper } from '@/lib/actions/ai/topic-recommendations'
 import type {
   NoveltyCheckResult,
   NoveltySignal,
   NoveltyDimension,
   DimensionAnalysis,
+  DifferentiationOpportunity,
 } from '@/lib/types/novelty-check'
 import { DIMENSION_LABEL } from '@/lib/types/novelty-check'
 import { checkNovelty } from '@/lib/actions/ai/novelty-check'
@@ -17,7 +18,8 @@ interface Props {
   researchIntent:     string
   researchQuestions:  string[]
   userInsights:       string[]
-  poolPaperTitles:    string[]
+  /** v21: 풀 페이퍼 메타(abstract·journal 포함). 비어있으면 poolPaperTitles 로 fallback. */
+  poolPapers:         PoolPaper[]
   onClose:            () => void
   onProceed:          (result: NoveltyCheckResult) => void
   onRevert:           (signal: NoveltySignal) => void
@@ -37,7 +39,7 @@ const VERDICT_LABEL: Record<DimensionAnalysis['verdict'], string> = {
 
 export function NoveltyCheckDialog({
   open, topic,
-  researchIntent, researchQuestions, userInsights, poolPaperTitles,
+  researchIntent, researchQuestions, userInsights, poolPapers,
   onClose, onProceed, onRevert,
 }: Props) {
   const [loading, setLoading] = useState(false)
@@ -62,7 +64,12 @@ export function NoveltyCheckDialog({
       researchIntent,
       researchQuestions,
       userInsights,
-      poolPaperTitles,
+      poolPapers: poolPapers.map((p) => ({
+        title:    p.title,
+        abstract: p.abstract ?? null,
+        year:     p.year ?? null,
+        journal:  p.journal ?? null,
+      })),
     })
       .then((r) => {
         if (!alive) return
@@ -76,7 +83,7 @@ export function NoveltyCheckDialog({
       .finally(() => { if (alive) setLoading(false) })
 
     return () => { alive = false }
-  }, [open, topic, researchIntent, researchQuestions, userInsights, poolPaperTitles])
+  }, [open, topic, researchIntent, researchQuestions, userInsights, poolPapers])
 
   if (!open || !topic) return null
 
@@ -142,6 +149,20 @@ export function NoveltyCheckDialog({
                 </div>
               </div>
 
+              {/* v21 (B3-검증): 차별성 기회 — 5차원 다음, 유사 논문 위 */}
+              {result.differentiation_opportunities && result.differentiation_opportunities.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[11px] font-medium text-zinc-500">
+                    🎯 차별성 기회 ({result.differentiation_opportunities.length}개)
+                  </p>
+                  <div className="space-y-1.5">
+                    {result.differentiation_opportunities.map((op, i) => (
+                      <DifferentiationCard key={i} opp={op} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* 유사 논문 */}
               {result.similar_papers.length > 0 && (
                 <div className="space-y-2">
@@ -187,6 +208,41 @@ export function NoveltyCheckDialog({
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── 차별성 기회 카드 ────────────────────────────────────
+
+const TYPE_LABEL: Record<DifferentiationOpportunity['type'], string> = {
+  quantitative:    '정량적',
+  methodological:  '방법론적',
+  directional:     '방향성',
+}
+
+const TYPE_COLOR: Record<DifferentiationOpportunity['type'], string> = {
+  quantitative:    'bg-emerald-900/40 text-emerald-300',
+  methodological:  'bg-sky-900/40 text-sky-300',
+  directional:     'bg-zinc-800 text-zinc-400',
+}
+
+function DifferentiationCard({ opp }: { opp: DifferentiationOpportunity }) {
+  return (
+    <div className="rounded border border-emerald-800/30 bg-emerald-950/15 px-3 py-2">
+      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+        <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] font-semibold text-zinc-400">
+          {DIMENSION_LABEL[opp.dimension]}
+        </span>
+        <span className={`rounded px-1.5 py-0.5 text-[9px] font-semibold ${TYPE_COLOR[opp.type]}`}>
+          {TYPE_LABEL[opp.type]}
+        </span>
+      </div>
+      <p className="text-xs text-zinc-200 leading-snug">{opp.recommendation}</p>
+      {opp.example && (
+        <p className="mt-1 text-[11px] text-emerald-300/80 leading-snug italic">
+          예: {opp.example}
+        </p>
+      )}
     </div>
   )
 }

@@ -11,6 +11,12 @@ export interface TopicRecommendation {
   acceptance_rationale: string   // why a top journal would accept this (Korean, 1 sentence)
   supporting_count:     number   // pool papers that back this topic
   confidence:           number   // 0–100
+  /**
+   * v21 (B3-카드): 풀 안 비슷한 논문 대비 차별점 1문장 힌트.
+   * 정량적·방법론적 방향성 — evidence 부족 시 방향성만.
+   * 깊은 분석은 Novelty 검증의 differentiation_opportunities 에서.
+   */
+  differentiation_hint?: string
   // ── v20 노트 ────────────────────────────────────────────
   // 기존 `novelty` 필드(AI 단독 1문장 평가)는 환각 위험으로 제거됨.
   // 진짜 novelty 검증은 트랙 생성 직전 명시적 게이트(checkNovelty)에서
@@ -85,6 +91,7 @@ export async function recommendTopics(
         'STEP 1 — MAP THE LANDSCAPE: identify clusters, dominant methods, key debates, and obvious white spaces. Pay special attention to [direct]-tagged papers — they represent what the researcher found most relevant.',
         'STEP 2 — FIND DEFENSIBLE GAPS: cross-reference the research questions explored so far with the landscape map. Identify gaps that (a) are not covered by existing papers, (b) align with the researcher\'s trajectory, (c) could be addressed with the methods visible in the pool.',
         'STEP 3 — DRAFT 4 PUBLISHABLE TOPICS: for each topic ensure a concrete hypothesis, a novel angle, a clear gap, and a reason a top journal would accept it.',
+        'STEP 4 — DIFFERENTIATION HINT: for EACH topic, write a 1-sentence Korean hint about WHERE the topic could differentiate from the most similar papers in the pool. Aim for QUANTITATIVE or METHODOLOGICAL angles when evidence supports it (e.g., "더 큰 데이터셋·다른 메트릭", "X 방법론 변형"); if evidence is insufficient, write a directional hint instead. This is a preview — deeper analysis happens at the Novelty verification step.',
       ],
       output: {
         kind:  'array',
@@ -94,7 +101,8 @@ export async function recommendTopics(
     "gap": "이 논문이 채우는 연구 공백 (Korean, 2 sentences)",
     "acceptance_rationale": "상위 저널이 이 논문을 채택할 이유 (Korean, 1 sentence)",
     "supporting_count": 12,
-    "confidence": 85
+    "confidence": 85,
+    "differentiation_hint": "풀 안 유사 논문 대비 차별점 1문장 (Korean) — 정량적/방법론적 방향성"
   }`,
         count:   { exact: 4 },
         orderBy: 'confidence descending',

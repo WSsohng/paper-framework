@@ -23,7 +23,19 @@ import type {
   NoveltyDimension,
   DimensionAnalysis,
   SimilarPaper,
+  DifferentiationOpportunity,
 } from '@/lib/types/novelty-check'
+
+/** Novelty 검증 풀 컨텍스트 — 메타데이터 포함 (B2 v21). */
+export interface NoveltyPoolPaper {
+  title:     string
+  abstract?: string | null
+  concepts?: string[]
+  year?:     number | null
+  journal?:  string | null
+  /** 0~1 — 프로젝트 의도 대비 관련도 (reference_papers 가 있으면 활용). */
+  relevance_score?: number | null
+}
 
 export interface NoveltyCheckInput {
   /** 검증 대상 주제 */
@@ -34,7 +46,12 @@ export interface NoveltyCheckInput {
   researchQuestions: string[]
   /** 사용자 인사이트들 */
   userInsights: string[]
-  /** 풀에 모인 논문 제목 (이미 검토된 것 — 컨텍스트로 사용) */
+  /**
+   * 풀 메타 (B2 v21) — abstract·concepts 포함.
+   * 있으면 poolPaperTitles 보다 우선 사용. 상위 20편까지 컨텍스트에 포함.
+   */
+  poolPapers?: NoveltyPoolPaper[]
+  /** 레거시 — poolPapers 가 없을 때 fallback. 제목만 30편. */
   poolPaperTitles?: string[]
 }
 
@@ -64,6 +81,13 @@ interface Stage2Output {
   dimensions:     Partial<Record<NoveltyDimension, { verdict?: string; rationale?: string; risk?: string }>>
   similar_papers: { evidence_index?: number; dimension?: string; similarity_note?: string }[]
   summary:        string
+  /** v21 (B3-검증) — 차별성 기회 3-5개. JSON 파싱 실패 시 undefined. */
+  differentiation_opportunities?: {
+    dimension?:      string
+    type?:           string
+    recommendation?: string
+    example?:        string
+  }[]
 }
 
 export async function checkNovelty(
@@ -94,7 +118,26 @@ export async function checkNovelty(
       'Researcher Insights',
     )
   }
-  if (input.poolPaperTitles && input.poolPaperTitles.length) {
+  // B2 v21: 메타데이터 포함 풀이 우선
+  if (input.poolPapers && input.poolPapers.length > 0) {
+    const top = input.poolPapers.slice(0, 20)
+    const body = top.map((p, i) => {
+      const meta = [
+        p.year    ? `${p.year}`              : null,
+        p.journal ? p.journal                : null,
+        p.concepts && p.concepts.length > 0 ? `concepts: [${p.concepts.slice(0, 6).join(', ')}]` : null,
+      ].filter(Boolean).join(' · ')
+      const head = `[${i + 1}] "${p.title}"${meta ? ` — ${meta}` : ''}`
+      const abs  = p.abstract ? `\n     ${p.abstract.slice(0, 250)}` : ''
+      return head + abs
+    }).join('\n\n')
+
+    stage1Builder.withCustom({
+      id:    'pool',
+      title: `Already-Reviewed Papers in Pool (${input.poolPapers.length} total, top ${top.length} with metadata)`,
+      body,
+    })
+  } else if (input.poolPaperTitles && input.poolPaperTitles.length) {
     stage1Builder.withCustom({
       id:    'pool',
       title: `Already-Reviewed Papers (sample of ${input.poolPaperTitles.length})`,
@@ -211,6 +254,7 @@ export async function checkNovelty(
         'For each evidence paper, decide: is it GENUINELY SIMILAR to the candidate topic (and on which dimension), or unrelated? Discard unrelated ones.',
         'For genuinely similar papers, write a 1-sentence Korean similarity_note explaining the overlap.',
         'Write a 2-3 sentence Korean summary of the overall novelty position — this is shown prominently in UI.',
+        'STEP 4 — DIFFERENTIATION OPPORTUNITIES: Based on similar papers, propose 3-5 concrete ways the candidate topic could differentiate. PREFER methodology / extension / intersection dimensions. If genuinely-similar evidence count ≥ 3, include "quantitative" type opportunities (concrete metrics, dataset sizes, experimental conditions) with examples; if evidence < 3, restrict to "directional" type only (broader strategic angles). Each opportunity gets dimension + type + Korean recommendation (1-2 sentences) + optional Korean example (1 sentence, concrete).',
       ],
       output: {
         kind:  'object',
@@ -229,7 +273,15 @@ export async function checkNovelty(
       "similarity_note": "Korean 1 sentence why this is genuinely similar"
     }
   ],
-  "summary": "Korean 2-3 sentences overall novelty assessment"
+  "summary": "Korean 2-3 sentences overall novelty assessment",
+  "differentiation_opportunities": [
+    {
+      "dimension":      "methodology|extension|intersection|topic|perspective",
+      "type":           "quantitative|methodological|directional",
+      "recommendation": "Korean 1-2 sentences",
+      "example":        "Korean 1 sentence concrete example (optional)"
+    }
+  ]
 }`,
       },
     },
@@ -268,19 +320,47 @@ export async function checkNovelty(
     .filter((x): x is SimilarPaper => x !== null)
     .slice(0, 5)
 
+  // v21 (B3-검증): differentiation_opportunities 매핑
+  const VALID_TYPES: DifferentiationOpportunity['type'][] = ['quantitative', 'methodological', 'directional']
+  const opportunities: DifferentiationOpportunity[] = (stage2.differentiation_opportunities ?? [])
+    .map((op): DifferentiationOpportunity | null => {
+      const dim = VALID_DIMS.includes(op.dimension as NoveltyDimension)
+        ? (op.dimension as NoveltyDimension)
+        : null
+      const type = VALID_TYPES.includes(op.type as DifferentiationOpportunity['type'])
+        ? (op.type as DifferentiationOpportunity['type'])
+        : null
+      if (!dim || !type || !op.recommendation) return null
+      return {
+        dimension:      dim,
+        type,
+        recommendation: op.recommendation,
+        ...(op.example ? { example: op.example } : {}),
+      }
+    })
+    .filter((x): x is DifferentiationOpportunity => x !== null)
+    .slice(0, 5)
+
   return {
     success: true,
-    data: buildResult(input.topic, stage2.dimensions ?? {}, similarPapers, stage2.summary ?? ''),
+    data: buildResult(
+      input.topic,
+      stage2.dimensions ?? {},
+      similarPapers,
+      stage2.summary ?? '',
+      opportunities,
+    ),
   }
 }
 
 // ── 결과 노멀라이즈 ───────────────────────────────────────
 
 function buildResult(
-  topic:      NoveltyCheckResult['target'],
-  dimensions: Partial<Record<NoveltyDimension, { verdict?: string; rationale?: string; risk?: string }>>,
-  similar:    SimilarPaper[],
-  summary:    string,
+  topic:         NoveltyCheckResult['target'],
+  dimensions:    Partial<Record<NoveltyDimension, { verdict?: string; rationale?: string; risk?: string }>>,
+  similar:       SimilarPaper[],
+  summary:       string,
+  opportunities: DifferentiationOpportunity[] = [],
 ): NoveltyCheckResult {
   const norm = (d: { verdict?: string; rationale?: string; risk?: string } | undefined): DimensionAnalysis => {
     const verdict = (d?.verdict && VALID_VERDICTS.includes(d.verdict as DimensionAnalysis['verdict']))
@@ -303,6 +383,7 @@ function buildResult(
       extension:    norm(dimensions.extension),
     },
     similar_papers: similar,
+    ...(opportunities.length > 0 ? { differentiation_opportunities: opportunities } : {}),
     summary,
     checked_at: new Date().toISOString(),
   }
