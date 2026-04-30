@@ -13,14 +13,14 @@
 
 /** 질문이 커버하는 도메인 영역 */
 export type QuestionDomain =
-  | 'tech'          // 기술 도메인: AI/ML 기법, 아키텍처
+  | 'tech'          // 핵심 기법: 연구 의도에서 도출되는 핵심 기술/방법론 (AI, 통계, 계산, 도메인 특화 등)
   | 'application'   // 응용 도메인: 타겟 분야의 현재 방법론·과제
-  | 'intersection'  // 교차점: 기술이 타겟 분야에 적용된 현황
+  | 'intersection'  // 교차점: 기법이 타겟 분야에 적용된 현황
   | 'methodology'   // 평가·벤치마크·데이터셋
   | 'frontier'      // 최신 동향·미해결 과제
 
 export const DOMAIN_LABEL: Record<QuestionDomain, string> = {
-  tech:         'AI 기법',
+  tech:         '핵심 기법',
   application:  '응용 분야',
   intersection: '교차 적용',
   methodology:  '방법론·평가',

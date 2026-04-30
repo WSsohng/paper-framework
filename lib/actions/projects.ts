@@ -2,15 +2,30 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import type { ActionResult, Project, ProjectInput } from '@/lib/types'
+import { getSelectedProjectId } from '@/lib/selected-project'
+import { setSelectedProject } from '@/lib/actions/project-context'
+import type { ActionResult, Project, ProjectInput, ProjectStatus } from '@/lib/types'
 
-export async function getProjects(): Promise<Project[]> {
+/**
+ * 프로젝트 목록 조회.
+ * - opts 없음 = active 만 (기본 동작 — 사이드바에서 보관/완료된 프로젝트가 안 보이게)
+ * - opts.status = 특정 상태 (보관함 페이지 등)
+ * - opts.status = 'all' = 모든 상태
+ */
+export async function getProjects(
+  opts?: { status?: ProjectStatus | 'all' },
+): Promise<Project[]> {
   const supabase = await createClient()
-  const { data, error } = await supabase
+  const status   = opts?.status ?? 'active'
+
+  let query = supabase
     .from('projects')
     .select('*')
     .order('created_at', { ascending: false })
 
+  if (status !== 'all') query = query.eq('status', status)
+
+  const { data, error } = await query
   if (error) throw new Error(error.message)
   return data ?? []
 }
@@ -131,7 +146,34 @@ export async function deleteProject(id: string): Promise<ActionResult> {
 
   if (error) return { success: false, error: error.message }
 
+  // 삭제된 프로젝트가 현재 선택 중이면 쿠키 비움 (404 방지)
+  const selectedId = await getSelectedProjectId()
+  if (selectedId === id) await setSelectedProject(null)
+
   revalidatePath('/', 'layout')
   revalidatePath('/dashboard')
   return { success: true, data: undefined }
+}
+
+/**
+ * 프로젝트 보관 (soft delete) — status 를 'archived' 로 변경.
+ * 사이드바 셀렉터에서 사라지지만 DB 와 cascade 데이터는 그대로 보존.
+ */
+export async function archiveProject(id: string): Promise<ActionResult<Project>> {
+  const result = await updateProject(id, { status: 'archived' })
+
+  // 보관된 프로젝트가 현재 선택 중이면 쿠키 비움 (셀렉터 일관성)
+  if (result.success) {
+    const selectedId = await getSelectedProjectId()
+    if (selectedId === id) await setSelectedProject(null)
+  }
+
+  return result
+}
+
+/**
+ * 보관 해제 — status 를 'active' 로 복구.
+ */
+export async function restoreProject(id: string): Promise<ActionResult<Project>> {
+  return updateProject(id, { status: 'active' })
 }

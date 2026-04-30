@@ -1481,6 +1481,9 @@ function SearchRoundCard({
                   직접 관련 {directCount}편
                 </span>
               )}
+              {directCount === 0 && (
+                <span className="text-[10px] text-amber-400">⚠ 직접 관련 없음</span>
+              )}
             </div>
             <p className="mt-0.5 text-xs text-zinc-400 leading-snug line-clamp-1">
               {round.question}
@@ -1525,7 +1528,9 @@ function SearchRoundCard({
               <Spinner />
               {round.phase === 'searching'
                 ? round.searchProgress ?? '검색 중'
-                : '검토 중'}
+                : round.phase === 'verifying' && round.papers.length > 0
+                  ? `검토 중 (${Math.min(round.papers.length, 60)}편)`
+                  : '검토 중'}
             </span>
           )}
           {round.papers.length > 0 && (
@@ -1569,10 +1574,24 @@ function SearchRoundCard({
             <p className="px-4 py-3 text-sm text-zinc-600">검색 결과가 없습니다.</p>
           ) : visiblePapers.length > 0 ? (
             <>
-              {/* 상단 바: 저장 + unrelated 토글 */}
+              {/* 직접 관련 0편 경고 (verified 됐는데 partial/unrelated 만 있는 경우) */}
+              {verified && directCount === 0 && (
+                <div className="border-b border-amber-800/40 bg-amber-950/30 px-4 py-2 text-[11px] text-amber-300 leading-snug">
+                  ⚠ 직접 관련 논문이 없습니다 — 모두 부분 관련 또는 비관련으로 분류되었습니다. 질문을 더 좁히거나 다른 키워드를 시도해 보세요.
+                </div>
+              )}
+              {/* 상단 바: 저장 + unrelated 토글 + 검토 한도 안내 */}
               <div className="flex items-center justify-between border-b border-zinc-800/60 bg-zinc-900/40 px-4 py-2 gap-3">
                 <div className="flex items-center gap-3 text-xs text-zinc-500 flex-wrap">
                   {newCount > 0 && <span>{newCount}편 미저장</span>}
+                  {verified && round.papers.length > round.verifications.size && (
+                    <span
+                      className="text-zinc-600"
+                      title={`현재 검토 한도는 60편입니다. (검색 ${round.papers.length}편 중 ${round.verifications.size}편 검토)`}
+                    >
+                      검토 {round.verifications.size}/{round.papers.length}편 (한도 60)
+                    </span>
+                  )}
                   {unrelatedCount > 0 && (
                     <button
                       onClick={onToggleUnrelated}

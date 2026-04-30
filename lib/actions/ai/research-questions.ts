@@ -112,9 +112,9 @@ Return a JSON object with exactly this structure:
 }
 
 Domain definitions:
-- tech: AI/ML techniques, architectures, models — focus on the technology side only
-- application: The target field's existing methods, challenges, data types — without AI
-- intersection: Current state of applying AI/tech to the target field
+- tech: Core technical methods or techniques relevant to the research intent. This may be AI/ML, statistical methods, computational simulation, experimental instrumentation, or domain-specific techniques — DERIVE FROM THE USER'S INTENT. Do NOT default to AI/ML unless the user's intent explicitly mentions it.
+- application: The target field's existing methods, challenges, data types (in the field's own terms, without forcing AI framing)
+- intersection: Current state of applying the core technique to the target field (only relevant if the technique exists outside the field)
 - methodology: Benchmarks, datasets, evaluation metrics, experimental protocols
 - frontier: Very recent work (last 1-2 years), emerging trends, unsolved problems
 
@@ -169,10 +169,11 @@ No markdown, pure JSON only.`
 function buildFirstRoundTask(): string {
   return `TASK — First round: Generate 5 questions that systematically cover the full research landscape.
 
-Distribute across domains as follows (one question per domain):
-1. [tech] What are the latest AI/ML techniques relevant to this research? (focus on the technology side)
-2. [application] What are the current methods, challenges, and data characteristics of the target field? (no AI)
-3. [intersection] What is the current state of applying AI/ML to this specific target field?
+Distribute across domains as follows (one question per domain). FIRST infer what the "core technique" of this research is from the user's research intent — it could be AI/ML, statistics, instrumentation, computational simulation, a specific experimental method, or anything else. Do NOT assume AI/ML unless the intent explicitly mentions it.
+
+1. [tech] What are the core technical methods most relevant to this research intent? (the techniques the researcher is likely to use or build upon — derived from the intent, not defaulted to AI)
+2. [application] What are the current methods, challenges, and data characteristics of the target field? (the field's own paradigm)
+3. [intersection] How is the core technique currently being applied to this specific target field? (skip the AI assumption — use whatever technique you identified in [tech])
 4. [methodology] What datasets, benchmarks, or evaluation protocols exist for this problem?
 5. [frontier] What are the most recent advances or unsolved challenges in the past 1-2 years?
 
