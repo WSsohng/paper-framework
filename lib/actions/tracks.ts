@@ -43,6 +43,10 @@ export async function createTrack(input: TrackInput): Promise<ActionResult<Track
       color:           input.color           ?? '#6366f1',
       status:          input.status          ?? 'active',
       tags:            input.tags            ?? [],
+      // v20: M0 발굴 결과 스냅샷 (없으면 NULL)
+      topic_candidates:     input.topic_candidates     ?? null,
+      selected_topic_index: input.selected_topic_index ?? null,
+      novelty_check:        input.novelty_check        ?? null,
     })
     .select()
     .single()

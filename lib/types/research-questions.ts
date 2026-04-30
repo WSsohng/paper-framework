@@ -35,6 +35,40 @@ export const DOMAIN_COLOR: Record<QuestionDomain, string> = {
   frontier:     'bg-rose-900/40 text-rose-300',
 }
 
+// ── 발굴 모드 (M0 후속 질문) ───────────────────────────────
+
+/**
+ * 후속 질문 생성 모드 = 라운드 단위 사용자 선택.
+ *   deepen    = 좁히기 우세 (심화 4 + 확장 1)
+ *   broaden   = 인접 영역 탐색 (심화 1 + 확장 4)
+ *   new_angle = 발산 (새 각도 5)
+ *
+ * 첫 라운드는 모드 없음 (NULL). 2라운드+ 부터 사용자 선택.
+ *
+ * 같은 union 이 질문 단위 라벨로도 사용됨 — 모드는 라운드 distribution 을 결정,
+ * 라벨은 개별 질문의 성격을 표시. 의도는 다르지만 어휘는 통일.
+ */
+export type DiscoveryMode = 'deepen' | 'broaden' | 'new_angle'
+
+export const MODE_LABEL: Record<DiscoveryMode, string> = {
+  deepen:    '심화',
+  broaden:   '확장',
+  new_angle: '새 각도',
+}
+
+export const MODE_COLOR: Record<DiscoveryMode, string> = {
+  deepen:    'bg-emerald-900/40 text-emerald-300',
+  broaden:   'bg-sky-900/40 text-sky-300',
+  new_angle: 'bg-fuchsia-900/40 text-fuchsia-300',
+}
+
+/** 모드별 distribution rule. 합은 항상 5. */
+export const MODE_DISTRIBUTION: Record<DiscoveryMode, Record<DiscoveryMode, number>> = {
+  deepen:    { deepen: 4, broaden: 1, new_angle: 0 },
+  broaden:   { deepen: 1, broaden: 4, new_angle: 0 },
+  new_angle: { deepen: 0, broaden: 0, new_angle: 5 },
+}
+
 // ── 구조 타입 ──────────────────────────────────────────────
 
 export interface ResearchQuestion {
@@ -43,6 +77,15 @@ export interface ResearchQuestion {
   focus:         string          // 이 질문이 탐색하는 인사이트 (Korean, 1 sentence)
   domain:        QuestionDomain  // 어느 영역을 커버하는가
   coverage_note: string          // 왜 이 질문이 지금 필요한가 (Korean, 1 sentence)
+  /** 후속 질문 라벨. 첫 라운드 질문은 NULL. */
+  label?:        DiscoveryMode | null
+}
+
+/** Regenerate 회차별 후보 묶음 (discovery_rounds.regenerate_history JSONB 원소). */
+export interface RegenerateHistoryEntry {
+  mode:         DiscoveryMode | null
+  candidates:   ResearchQuestion[]
+  generated_at: string
 }
 
 export interface SearchHistoryItem {

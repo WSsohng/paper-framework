@@ -86,6 +86,13 @@ export interface Track {
   target_submit_date: string | null
   context_log: TrackContextEntry[]
   tags: string[]
+  // v20: M0 발굴 결과 스냅샷
+  /** 트랙 생성 시 AI 가 추천한 주제 후보 전체 (TopicRecommendation[]). 사용자가 직접 입력한 트랙은 NULL. */
+  topic_candidates: import('@/lib/actions/ai/topic-recommendations').TopicRecommendation[] | null
+  /** topic_candidates 배열에서 사용자가 선택한 인덱스. custom 입력은 NULL. */
+  selected_topic_index: number | null
+  /** Novelty 검증 결과. 사용자가 검증 버튼을 누른 경우만 채워짐. */
+  novelty_check: import('@/lib/types/novelty-check').NoveltyCheckResult | null
   created_at: string
   updated_at: string
   // joined
@@ -107,6 +114,10 @@ export interface TrackInput {
   target_submit_date?: string | null
   context_log?: TrackContextEntry[]
   tags?: string[]
+  // v20: M0 발굴 결과 (트랙 생성 시 함께 저장)
+  topic_candidates?: import('@/lib/actions/ai/topic-recommendations').TopicRecommendation[] | null
+  selected_topic_index?: number | null
+  novelty_check?: import('@/lib/types/novelty-check').NoveltyCheckResult | null
 }
 
 // ── Module 0: Paper Status (공용 enum) ────────────────────

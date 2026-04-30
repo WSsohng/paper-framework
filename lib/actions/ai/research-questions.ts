@@ -4,7 +4,7 @@
  * AI 연구 질문 생성 서버 액션.
  *
  * 중요: 이 파일은 `'use server'` 이므로 **async 함수만** export 할 수 있다.
- * 타입·상수(DOMAIN_LABEL 등)는 `lib/types/research-questions.ts` 에 있다.
+ * 타입·상수(DOMAIN_LABEL, MODE_LABEL 등)는 `lib/types/research-questions.ts` 에 있다.
  * 상수를 이 파일에 추가하면 Turbopack 이 모듈 로드를 실패시킨다:
  *   `A "use server" file can only export async functions, found object.`
  */
@@ -16,16 +16,35 @@ import type {
   SearchHistoryItem,
   CoverageMap,
   QuestionResult,
+  DiscoveryMode,
 } from '@/lib/types/research-questions'
+import type { NoveltySignal } from '@/lib/types/novelty-check'
 
 // ── 메인 액션 ─────────────────────────────────────────────
+
+export interface GenerateQuestionsOpts {
+  /** 후속 라운드의 모드. 첫 라운드는 NULL 또는 생략. */
+  mode?:                 DiscoveryMode | null
+  /**
+   * 같은 라운드 안에서 regenerate 시 이미 본 질문들의 영문 텍스트.
+   * 프롬프트에 "do NOT repeat" 섹션으로 들어가 중복 회피.
+   */
+  alreadySeenQuestions?: string[]
+  /**
+   * 직전 트랙 시도에서 Novelty 검증 결과 회귀를 선택했을 때 전달되는 시그널.
+   * 약한 차원/회피 가이드를 다음 질문 생성에 반영.
+   */
+  noveltySignal?:        NoveltySignal | null
+}
 
 export async function generateResearchQuestions(
   projectName:    string,
   researchIntent: string,
   history?:       SearchHistoryItem[],
+  opts?:          GenerateQuestionsOpts,
 ): Promise<QuestionResult> {
-  const isFollowUp = history && history.length > 0
+  const isFollowUp = !!(history && history.length > 0)
+  const mode       = isFollowUp ? (opts?.mode ?? 'broaden') : null
 
   // ── 히스토리 섹션 ────────────────────────────────────────
   const historySection = isFollowUp
@@ -47,9 +66,26 @@ export async function generateResearchQuestions(
       })()
     : ''
 
+  // ── Regenerate 회피 섹션 ─────────────────────────────────
+  const alreadySeenSection = (opts?.alreadySeenQuestions && opts.alreadySeenQuestions.length > 0)
+    ? `\nALREADY GENERATED in this round (regenerate context — do NOT repeat or paraphrase):\n${
+        opts.alreadySeenQuestions.map(q => `- "${q}"`).join('\n')
+      }\n`
+    : ''
+
+  // ── Novelty 회귀 시그널 섹션 ─────────────────────────────
+  const noveltySection = opts?.noveltySignal
+    ? `\nPRIOR NOVELTY CHECK SIGNAL:
+The user previously attempted to commit to topic "${opts.noveltySignal.attempted_title}"
+but the verification found these dimensions overlapping with existing research: ${opts.noveltySignal.weak_dimensions.join(', ')}.
+Guidance from verification: ${opts.noveltySignal.guidance}
+→ Use this signal to steer this round's questions AWAY from the overlapping directions.
+\n`
+    : ''
+
   // ── 초회 vs 후속 분기 ────────────────────────────────────
   const taskDescription = isFollowUp
-    ? buildFollowUpTask()
+    ? buildFollowUpTask(mode!)
     : buildFirstRoundTask()
 
   const prompt = `You are a research literature strategist for interdisciplinary academic research.
@@ -57,7 +93,7 @@ Your job is to generate strategic search questions that build a comprehensive li
 
 Project: ${projectName}
 Research Intent: ${researchIntent}
-${historySection}${insightContext}
+${historySection}${insightContext}${alreadySeenSection}${noveltySection}
 ${taskDescription}
 
 Return a JSON object with exactly this structure:
@@ -68,6 +104,7 @@ Return a JSON object with exactly this structure:
       "angle": "전략적 관점 (Korean, max 10 chars)",
       "focus": "이 질문이 탐색하는 인사이트 (Korean, 1 sentence)",
       "domain": "tech" | "application" | "intersection" | "methodology" | "frontier",
+      "label": ${isFollowUp ? '"deepen" | "broaden" | "new_angle"' : 'null'},
       "coverage_note": "왜 지금 이 질문이 필요한가 (Korean, 1 sentence)"
     }
   ],
@@ -85,7 +122,7 @@ No markdown, pure JSON only.`
 
   try {
     const raw = await generateJson<{
-      questions:        { question: string; angle: string; focus: string; domain: string; coverage_note: string }[]
+      questions:        { question: string; angle: string; focus: string; domain: string; label?: string; coverage_note: string }[]
       coverage_summary: string
     }>(prompt, 0.4, { meta: { feature: 'research_questions' } })
 
@@ -94,6 +131,7 @@ No markdown, pure JSON only.`
     }
 
     const VALID_DOMAINS: QuestionDomain[] = ['tech', 'application', 'intersection', 'methodology', 'frontier']
+    const VALID_LABELS:  DiscoveryMode[]   = ['deepen', 'broaden', 'new_angle']
 
     const questions: ResearchQuestion[] = raw.questions.slice(0, 5).map((q) => ({
       question:      q.question ?? '',
@@ -103,6 +141,9 @@ No markdown, pure JSON only.`
                        ? (q.domain as QuestionDomain)
                        : 'tech',
       coverage_note: q.coverage_note ?? '',
+      label:         isFollowUp && VALID_LABELS.includes(q.label as DiscoveryMode)
+                       ? (q.label as DiscoveryMode)
+                       : null,
     }))
 
     // 커버리지 맵 계산 (후속 질문일 때 포함)
@@ -139,33 +180,52 @@ Rules:
 - Questions must be independent: each covers a clearly different angle
 - Questions should yield 10–40 focused papers each
 - Write questions in English (for search engines), max 25 words each
-- Be specific to the exact research intent, not generic`
+- Be specific to the exact research intent, not generic
+- "label" field must be null for first round questions`
 }
 
 // ── 후속 질문 생성 지시 ───────────────────────────────────
 
-function buildFollowUpTask(): string {
-  return `TASK — Follow-up round: Analyze what's been covered and fill the gaps.
+function buildFollowUpTask(mode: DiscoveryMode): string {
+  // 모드별 distribution. 합은 항상 5.
+  const dist = mode === 'deepen'
+    ? { deepen: 4, broaden: 1, new_angle: 0 }
+    : mode === 'broaden'
+    ? { deepen: 1, broaden: 4, new_angle: 0 }
+    : { deepen: 0, broaden: 0, new_angle: 5 }
 
-Step 1 — Map previous rounds to domains:
-  Estimate how well each domain is covered based on the search questions and papers found.
-  A domain is "thin" if: fewer than 2 rounds covered it, OR papers found were mostly unrelated.
+  const intentLine = mode === 'deepen'
+    ? "Mode = DEEPEN. The researcher wants to NARROW DOWN — drill into already-explored areas with more specificity. Add only 1 broaden question as a safety net to avoid tunnel vision."
+    : mode === 'broaden'
+    ? "Mode = BROADEN. The researcher wants to explore ADJACENT areas not yet covered — related but different angles from prior rounds. Keep 1 deepen question as an anchor to prior trajectory."
+    : "Mode = NEW_ANGLE. The researcher wants a CONSCIOUS DEPARTURE — entirely different perspectives not connected to the prior thinking. Do NOT mix in deepen/broaden questions; the user explicitly chose to step outside the current trajectory."
 
-Step 2 — Identify the 2-3 thinnest domains.
+  return `TASK — Follow-up round (${mode} mode).
 
-Step 3 — Generate 5 questions targeting those thin domains first, then deepen already-covered areas.
+${intentLine}
 
-Question distribution rules:
-- At least 2 questions must target the thinnest domains
-- At least 1 question must go deeper into a previously explored angle (more specific sub-topic)
-- At least 1 question should explore a completely new angle not yet tried
-- Do NOT repeat questions already asked
+Question distribution rules (MANDATORY — exact counts):
+- "deepen"    questions: ${dist.deepen}
+- "broaden"   questions: ${dist.broaden}
+- "new_angle" questions: ${dist.new_angle}
+Total = 5. Each question must carry the corresponding "label" field.
 
-For "thin" domains, be more targeted:
-  - tech: specific architecture/technique (e.g., "graph neural network molecular property" not just "deep learning chemistry")
-  - application: specific measurement type or workflow in the field
-  - intersection: specific task (classification, regression, anomaly detection) in the target field
-  - frontier: narrow sub-trend (e.g., "few-shot learning chemical analysis 2024")`
+Label definitions:
+- deepen    = drill down into a topic already explored (narrower sub-topic, more specific method/measurement/dataset)
+- broaden   = explore an adjacent area not yet covered (related but different domain/angle from prior rounds)
+- new_angle = an entirely different perspective not connected to prior trajectory (different paradigm, different sub-field, different research lens)
+
+Hard rules:
+- Do NOT repeat or paraphrase questions already asked in prior rounds
+- If "ALREADY GENERATED in this round" section is present, do NOT repeat or paraphrase those either
+- If "PRIOR NOVELTY CHECK SIGNAL" is present, steer questions AWAY from the listed overlapping dimensions
+
+Quality rules per label:
+- deepen: pick a previously-explored angle and go narrower — specific architecture, specific measurement, specific dataset/benchmark
+- broaden: pick an adjacent angle the researcher likely hasn't tried — same general domain but different facet
+- new_angle: cross to a different paradigm — different methodological tradition, different theoretical lens, or a completely different application context
+
+Domain rule: distribute domain field naturally based on the question content (do NOT force one-per-domain like first round).`
 }
 
 // ── 커버리지 맵 계산 ──────────────────────────────────────
@@ -175,24 +235,12 @@ function buildCoverageMap(
   newQuestions:     ResearchQuestion[],
   summaryFromClaude: string,
 ): CoverageMap {
-  // 간단한 키워드 휴리스틱으로 기존 히스토리를 domain으로 분류
-  const counts: Record<QuestionDomain, number> = {
-    tech: 0, application: 0, intersection: 0, methodology: 0, frontier: 0,
-  }
-
-  // 새로 생성된 질문의 domain 분포로 역으로 thin area 추정
-  // (Claude가 많이 생성한 domain = 아직 부족한 domain)
-  for (const q of newQuestions) {
-    // 새 질문이 집중하는 domain이 thin area
-  }
-
   // 히스토리 라운드 수로 대략적 추정
   const totalRounds = history.length
   const perDomain   = Math.floor(totalRounds / 5)
   const remainder   = totalRounds % 5
 
-  // 실제 domain 태깅은 Claude가 하므로 여기서는 thin areas를
-  // 새 질문에서 2회 이상 등장한 domain으로 판단
+  // 새 질문에서 2회 이상 등장한 domain = thin area 추정
   const newDomainCount: Partial<Record<QuestionDomain, number>> = {}
   for (const q of newQuestions) {
     newDomainCount[q.domain] = (newDomainCount[q.domain] ?? 0) + 1

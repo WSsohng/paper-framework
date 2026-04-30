@@ -13,5 +13,6 @@ export const FEATURE_LABELS: Record<string, string> = {
   track_monitoring:       '트랙 연관 모니터링',
   search_keywords:        '검색 키워드 추출',
   paper_verification:     '논문 관련성 검토',
+  novelty_check:          'Novelty 검증',
   other:                  '기타',
 }

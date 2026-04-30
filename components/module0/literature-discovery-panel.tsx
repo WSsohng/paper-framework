@@ -9,9 +9,14 @@ import {
   type ResearchQuestion,
   type SearchHistoryItem,
   type CoverageMap,
+  type DiscoveryMode,
+  type RegenerateHistoryEntry,
   DOMAIN_LABEL,
   DOMAIN_COLOR,
+  MODE_LABEL,
+  MODE_COLOR,
 } from '@/lib/types/research-questions'
+import type { NoveltySignal } from '@/lib/types/novelty-check'
 import { searchPapers } from '@/lib/actions/search/search-papers'
 import type { FoundPaper } from '@/lib/actions/search/semantic-scholar'
 import { planSearch } from '@/lib/actions/ai/plan-search'
@@ -33,9 +38,13 @@ import {
   updateRoundShowUnrelated,
   deleteDiscoveryRound,
   clearDiscoveryRounds,
+  associateRoundsWithTrack,
   type DiscoveryRoundRow,
 } from '@/lib/actions/discovery-rounds'
 import { enrichJournalImpactFactors } from '@/lib/actions/search/journal-if-cache'
+import { DiscoveryHistoryTab } from './discovery-history-tab'
+import { NoveltyCheckDialog } from './novelty-check-dialog'
+import type { NoveltyCheckResult } from '@/lib/types/novelty-check'
 
 // ── Constants ─────────────────────────────────────────────
 // 주제 추천 활성화 조건: 질문 1회 이상 + 논문 3편 이상 (이전: 논문 15편)
@@ -70,6 +79,10 @@ interface SearchRound {
   savedIds:     Set<string>
   expanded:     boolean
   showUnrelated: boolean
+  // ── v20: 발굴 모드/후보 보존 (저장 시 함께 영구 보존)
+  question_candidates: ResearchQuestion[] | null
+  mode:                DiscoveryMode | null
+  regenerate_history:  RegenerateHistoryEntry[] | null
 }
 
 interface PendingQuestion {
@@ -116,6 +129,10 @@ function rowToRound(row: DiscoveryRoundRow): SearchRound {
     expanded:       false,
     showUnrelated:  row.show_unrelated,
     error:          null,
+    // v20: 새 필드 (레거시 row 는 모두 NULL)
+    question_candidates: row.question_candidates ?? null,
+    mode:                row.mode ?? null,
+    regenerate_history:  row.regenerate_history ?? null,
   }
 }
 
@@ -159,6 +176,18 @@ export function LiteratureDiscoveryPanel({
 
   // Coverage map (질문 생성 후 커버리지 상태)
   const [coverage, setCoverage]         = useState<CoverageMap | null>(null)
+
+  // ── v20: 후속 질문 모드 + Regenerate 이력 + Novelty 회귀 시그널 ───
+  /** 다음 라운드 모드 — 2라운드+ 시 사용자 선택 필수, 첫 라운드는 NULL. */
+  const [selectedMode, setSelectedMode] = useState<DiscoveryMode | null>(null)
+  /** 같은 라운드 내 regenerate 이력 — 검색 시작 시 saveDiscoveryRound 로 영구 보존 후 초기화. */
+  const [regenHistory, setRegenHistory] = useState<RegenerateHistoryEntry[]>([])
+  /** 직전 트랙 시도에서 Novelty 검증 결과 회귀 시 다음 generate 에 1회 주입. */
+  const [noveltySignal, setNoveltySignal] = useState<NoveltySignal | null>(null)
+  /** v20: 탭 — 'discover' = 기존 AI 문헌탐색, 'history' = 이전 기록 (트랙별). */
+  const [activeTab, setActiveTab]         = useState<'discover' | 'history'>('discover')
+  /** v20: Novelty 검증 다이얼로그 대상 주제 (NULL = 다이얼로그 닫힘). */
+  const [noveltyTopic, setNoveltyTopic]   = useState<TopicRecommendation | null>(null)
 
   // Topics (right panel)
   const [topics, setTopics]             = useState<TopicRecommendation[]>([])
@@ -282,6 +311,13 @@ export function LiteratureDiscoveryPanel({
   // ── Step 1 / Refresh: Generate Questions ────────────────
   const handleGenerateQuestions = useCallback(async () => {
     if (!intent) return
+    const isFollowUp = rounds.length > 0
+    // 2라운드+ 에서는 모드 필수
+    if (isFollowUp && !selectedMode) {
+      setQError('이번 라운드 모드를 먼저 선택해 주세요 ([심화] / [확장] / [새 각도]).')
+      return
+    }
+
     setLoadingQ(true)
     setQError(null)
 
@@ -291,21 +327,42 @@ export function LiteratureDiscoveryPanel({
       user_insight: r.user_insight,
     }))
 
+    // 같은 라운드 안에서 이미 본 후보들 — regenerate 시 중복 회피
+    const alreadySeen = regenHistory.flatMap((e) => e.candidates.map((c) => c.question))
+
     const result = await generateResearchQuestions(
       projectName,
       intent,
       history.length > 0 ? history : undefined,
+      isFollowUp
+        ? {
+            mode:                  selectedMode,
+            alreadySeenQuestions:  alreadySeen,
+            noveltySignal,
+          }
+        : undefined,
     )
 
     if (!result.success) {
       setQError(result.error)
     } else {
       setQuestions(result.data)
-      setIsFollowUp(rounds.length > 0)
+      setIsFollowUp(isFollowUp)
       setCoverage(result.coverage ?? null)
+      // regenerate 이력 누적
+      setRegenHistory((prev) => [
+        ...prev,
+        {
+          mode:         selectedMode,
+          candidates:   result.data,
+          generated_at: new Date().toISOString(),
+        },
+      ])
+      // novelty 시그널은 한 번 사용 후 자동 비움 (다음 라운드부터는 미주입)
+      if (noveltySignal) setNoveltySignal(null)
     }
     setLoadingQ(false)
-  }, [intent, projectName, rounds])
+  }, [intent, projectName, rounds, selectedMode, regenHistory, noveltySignal])
 
   const searching = activePhase != null
 
@@ -498,6 +555,10 @@ export function LiteratureDiscoveryPanel({
         keywords:      plan ?? null,
         papers:        allPapers,
         verifications: verifications.map((v) => ({ index: v.index, match: v.match, note: v.note ?? '' })),
+        // v20: 후속 질문 모드/후보 보존
+        question_candidates: currentRound.question_candidates,
+        mode:                currentRound.mode,
+        regenerate_history:  currentRound.regenerate_history,
       })
       if (saveResult.success && saveResult.id) {
         setRounds((prev) => prev.map((r) =>
@@ -512,6 +573,12 @@ export function LiteratureDiscoveryPanel({
     if (!question.trim() || activePhase != null) return
     setCustomQ('')
     setPendingQ(null)
+
+    // v20: 라운드 시작 시점의 후보/모드/regen 이력 스냅샷 — saveDiscoveryRound 시 같이 보존
+    const candidatesSnapshot = questions.length > 0 ? [...questions] : null
+    const modeSnapshot       = selectedMode
+    const regenSnapshot      = regenHistory.length > 0 ? [...regenHistory] : null
+
     setQuestions([])
 
     const roundId = crypto.randomUUID()
@@ -525,11 +592,19 @@ export function LiteratureDiscoveryPanel({
         verifications: new Map(), phase: 'extracting',
         searchProgress: null,
         savedIds: new Set(), expanded: true, showUnrelated: false,
+        // v20: 후보/모드/regen 이력 스냅샷
+        question_candidates: candidatesSnapshot,
+        mode:                modeSnapshot,
+        regenerate_history:  regenSnapshot,
       },
     ])
 
+    // 다음 라운드를 위해 mode/regen 초기화 (사용자는 다음에 다시 모드 선택)
+    setSelectedMode(null)
+    setRegenHistory([])
+
     await runSearchPhases(roundId, question)
-  }, [activePhase, runSearchPhases])
+  }, [activePhase, runSearchPhases, questions, selectedMode, regenHistory])
 
   // ── Delete round ─────────────────────────────────────────
   const handleDeleteRound = useCallback(async (roundId: string) => {
@@ -614,25 +689,48 @@ export function LiteratureDiscoveryPanel({
   }, [projectName, intent, existingPapers, sessionSaved])
 
   // ── Create track and navigate ────────────────────────────
-  const handleStartTopic = useCallback(async (topic: TopicRecommendation | null, custom?: string) => {
-    const name   = topic?.title  ?? custom ?? ''
-    const intent = topic?.gap    ?? ''
-    if (!name.trim()) return
+  const handleStartTopic = useCallback(
+    async (
+      topic:   TopicRecommendation | null,
+      custom?: string,
+      novelty?: NoveltyCheckResult,
+    ) => {
+      const name    = topic?.title ?? custom ?? ''
+      const rIntent = topic?.gap   ?? ''
+      if (!name.trim()) return
 
-    setCreatingTrack(true)
-    const result = await createTrack({
-      project_id:      projectId,
-      name:            name.trim(),
-      research_intent: intent || undefined,
-      description:     topic?.novelty ?? undefined,
-      status:          'active',
-    })
+      // v20: description = gap 기본 + (검증 시) Novelty 종합 요약 추가
+      const baseDesc    = topic?.gap ?? ''
+      const noveltyDesc = novelty ? `\n\n[Novelty 검증] ${novelty.summary}` : ''
+      const description = (baseDesc + noveltyDesc).trim()
 
-    if (result.success) {
-      router.push('/tracks')
-    }
-    setCreatingTrack(false)
-  }, [projectId, router])
+      // v20: 추천 카드 중 선택된 인덱스 추적 (custom 입력은 NULL)
+      const selectedIndex = topic
+        ? topics.findIndex((t) => t.title === topic.title)
+        : -1
+
+      setCreatingTrack(true)
+      const result = await createTrack({
+        project_id:           projectId,
+        name:                 name.trim(),
+        research_intent:      rIntent || undefined,
+        description:          description || undefined,
+        status:               'active',
+        // v20: M0 발굴 결과 스냅샷
+        topic_candidates:     topics.length > 0 ? topics : null,
+        selected_topic_index: selectedIndex >= 0 ? selectedIndex : null,
+        novelty_check:        novelty ?? null,
+      })
+
+      if (result.success && result.data) {
+        // v20: 이 프로젝트의 미분류 라운드들을 새 트랙에 일괄 마킹
+        await associateRoundsWithTrack(projectId, result.data.id).catch(() => {})
+        router.push('/tracks')
+      }
+      setCreatingTrack(false)
+    },
+    [projectId, router, topics],
+  )
 
   // ── DB 로딩 중 ───────────────────────────────────────────
   if (!dbLoaded) {
@@ -663,7 +761,37 @@ export function LiteratureDiscoveryPanel({
 
   // ── Layout ───────────────────────────────────────────────
   return (
-    <div className="flex gap-5 items-start">
+    <div className="space-y-4">
+      {/* v20: 탭 헤더 */}
+      <div className="flex gap-1 border-b border-zinc-800">
+        <button
+          type="button"
+          onClick={() => setActiveTab('discover')}
+          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            activeTab === 'discover'
+              ? 'border-indigo-500 text-indigo-300'
+              : 'border-transparent text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          AI 문헌탐색
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('history')}
+          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            activeTab === 'history'
+              ? 'border-indigo-500 text-indigo-300'
+              : 'border-transparent text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          이전 기록
+        </button>
+      </div>
+
+      {activeTab === 'history' ? (
+        <DiscoveryHistoryTab projectId={projectId} />
+      ) : (
+      <div className="flex gap-5 items-start">
       {/* ── Main column ─────────────────────────────────── */}
       <div className="flex flex-1 min-w-0 flex-col gap-5">
         {/* Load error banner (DB 로드 실패 시) */}
@@ -790,19 +918,63 @@ export function LiteratureDiscoveryPanel({
           </span>
         </div>
 
+        {/* v20: 후속 질문 모드 선택 (2라운드+ 시 노출) */}
+        {rounds.length > 0 && (
+          <div className="space-y-2 rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-xs font-medium text-zinc-400">이번 라운드 모드</p>
+              {(['deepen', 'broaden', 'new_angle'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setSelectedMode(m)}
+                  disabled={loadingQ || searching}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                    selectedMode === m
+                      ? `${MODE_COLOR[m]} ring-1 ring-current`
+                      : 'bg-zinc-900 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
+                  }`}
+                >
+                  [{MODE_LABEL[m]}]
+                </button>
+              ))}
+              {selectedMode && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedMode(null)}
+                  className="ml-auto text-[10px] text-zinc-600 hover:text-zinc-400"
+                >
+                  선택 해제
+                </button>
+              )}
+            </div>
+            <p className="text-[11px] text-zinc-600 leading-snug">
+              {selectedMode === 'deepen'    && '심화 4개 + 확장 1개 — 좁혀가기 우세 (시야 폐쇄 방지용 확장 1개 포함)'}
+              {selectedMode === 'broaden'   && '심화 1개 + 확장 4개 — 인접 영역 탐색 우세 (이전 궤적 닻 1개 포함)'}
+              {selectedMode === 'new_angle' && '새 각도 5개 — 의식적 일탈, 이전 궤적과 단절된 완전히 다른 관점만'}
+              {!selectedMode                && '모드를 선택해야 후속 질문을 생성할 수 있습니다.'}
+            </p>
+            {noveltySignal && (
+              <div className="rounded border border-amber-700/40 bg-amber-950/30 px-3 py-2 text-[11px] text-amber-300 leading-snug">
+                ⚠ 직전 검증 시그널이 다음 질문 생성에 1회 반영됩니다 — 약한 차원: {noveltySignal.weak_dimensions.join(', ')}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Question generation */}
         <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={handleGenerateQuestions}
-            disabled={loadingQ || searching}
+            disabled={loadingQ || searching || (rounds.length > 0 && !selectedMode)}
             className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loadingQ ? (
               <><Spinner />질문 생성 중…</>
             ) : isFollowUp && hasQuestions ? (
-              <><span>↻</span>후속 질문 재생성</>
+              <><span>↻</span>다시 생성{selectedMode ? ` ([${MODE_LABEL[selectedMode]}])` : ''}</>
             ) : rounds.length > 0 ? (
-              <><span>✦</span>후속 질문 생성</>
+              <><span>✦</span>후속 질문 생성{selectedMode ? ` ([${MODE_LABEL[selectedMode]}])` : ''}</>
             ) : (
               <><span>✦</span>AI 연구 질문 생성</>
             )}
@@ -821,6 +993,10 @@ export function LiteratureDiscoveryPanel({
                 setQuestions([])
                 setIsFollowUp(false)
                 setPendingQ(null)
+                // v20: 모드/regenerate/novelty 시그널도 함께 초기화
+                setSelectedMode(null)
+                setRegenHistory([])
+                setNoveltySignal(null)
               }}
               className="ml-auto text-xs text-zinc-600 hover:text-red-400 transition-colors"
             >
@@ -895,6 +1071,12 @@ export function LiteratureDiscoveryPanel({
                     </span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                        {/* v20: 라벨 뱃지 (후속 질문만 — 첫 라운드는 NULL) */}
+                        {q.label && (
+                          <span className={`rounded px-1.5 py-0.5 text-[9px] font-semibold ${MODE_COLOR[q.label]}`}>
+                            [{MODE_LABEL[q.label]}]
+                          </span>
+                        )}
                         {/* 도메인 뱃지 */}
                         {'domain' in q && (
                           <span className={`rounded px-1.5 py-0.5 text-[9px] font-semibold ${DOMAIN_COLOR[q.domain as keyof typeof DOMAIN_COLOR] ?? 'bg-zinc-800 text-zinc-500'}`}>
@@ -1152,6 +1334,7 @@ export function LiteratureDiscoveryPanel({
                   topic={topic}
                   index={i}
                   onStart={() => handleStartTopic(topic)}
+                  onVerify={() => setNoveltyTopic(topic)}
                   disabled={creatingTrack}
                 />
               ))}
@@ -1188,6 +1371,30 @@ export function LiteratureDiscoveryPanel({
           )}
         </div>
       </div>
+      </div>
+      )}
+
+      {/* v20: Novelty 검증 다이얼로그 */}
+      <NoveltyCheckDialog
+        open={!!noveltyTopic}
+        topic={noveltyTopic}
+        researchIntent={intent}
+        researchQuestions={rounds.map((r) => r.question)}
+        userInsights={rounds.map((r) => r.user_insight).filter((x): x is string => !!x)}
+        poolPaperTitles={[...existingPapers, ...sessionSaved].map((p) => p.title)}
+        onClose={() => setNoveltyTopic(null)}
+        onProceed={(result) => {
+          const t = noveltyTopic
+          setNoveltyTopic(null)
+          if (t) handleStartTopic(t, undefined, result)
+        }}
+        onRevert={(signal) => {
+          setNoveltySignal(signal)
+          setNoveltyTopic(null)
+          // 발굴 탭으로 자동 전환 — 사용자가 다음 라운드 진행해야 함
+          setActiveTab('discover')
+        }}
+      />
     </div>
   )
 }
@@ -1564,13 +1771,14 @@ function PaperRow({ paper, verification, alreadyInDb, savedNow, onSave }: PaperR
 // ── TopicCard ─────────────────────────────────────────────
 
 interface TopicCardProps {
-  topic:    TopicRecommendation
-  index:    number
-  onStart:  () => void
-  disabled: boolean
+  topic:     TopicRecommendation
+  index:     number
+  onStart:   () => void
+  onVerify:  () => void
+  disabled:  boolean
 }
 
-function TopicCard({ topic, index, onStart, disabled }: TopicCardProps) {
+function TopicCard({ topic, index, onStart, onVerify, disabled }: TopicCardProps) {
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -1603,7 +1811,6 @@ function TopicCard({ topic, index, onStart, disabled }: TopicCardProps) {
             {expanded && (
               <div className="mt-2 space-y-1.5">
                 <p className="text-[11px] text-zinc-500 leading-snug">{topic.gap}</p>
-                <p className="text-[11px] text-zinc-600 leading-snug italic">{topic.novelty}</p>
                 {topic.acceptance_rationale && (
                   <p className="text-[11px] text-indigo-400/70 leading-snug">
                     📋 {topic.acceptance_rationale}
@@ -1614,13 +1821,22 @@ function TopicCard({ topic, index, onStart, disabled }: TopicCardProps) {
           </div>
         </div>
       </div>
-      <button
-        onClick={onStart}
-        disabled={disabled}
-        className="mt-2.5 w-full rounded bg-indigo-700/70 px-3 py-1.5 text-xs font-medium text-indigo-200 hover:bg-indigo-600 disabled:opacity-40 transition-colors"
-      >
-        {disabled ? '생성 중…' : '이 주제로 트랙 시작 →'}
-      </button>
+      <div className="mt-2.5 space-y-1">
+        <button
+          onClick={onVerify}
+          disabled={disabled}
+          className="w-full rounded bg-emerald-700/70 px-3 py-1.5 text-xs font-medium text-emerald-100 hover:bg-emerald-600 disabled:opacity-40 transition-colors"
+        >
+          🔍 검증 후 트랙 시작 (권장)
+        </button>
+        <button
+          onClick={onStart}
+          disabled={disabled}
+          className="w-full rounded bg-zinc-800 px-3 py-1.5 text-[11px] font-medium text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 disabled:opacity-40 transition-colors"
+        >
+          {disabled ? '생성 중…' : '검증 없이 바로 시작'}
+        </button>
+      </div>
     </div>
   )
 }
