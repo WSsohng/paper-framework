@@ -48,6 +48,21 @@ export interface SimilarPaper {
   similarity_note: string
 }
 
+/**
+ * 차별성 기회 — Stage 2 종합 후 AI 가 제안한 정량적/방법론적/방향성 차별점.
+ * v21 (B3-검증). evidence 가 충분(유사 논문 ≥3편)하면 정량/방법론, 부족하면 방향성만.
+ */
+export interface DifferentiationOpportunity {
+  /** 차원 — methodology / extension / intersection 가 자연스러운 후보. */
+  dimension: NoveltyDimension
+  /** 유형: 정량적·방법론적·방향성. quantitative 는 evidence 기반 권장. */
+  type: 'quantitative' | 'methodological' | 'directional'
+  /** 추천 (Korean 1-2 sentences) */
+  recommendation: string
+  /** 구체적 예시 (Korean 1 sentence, optional) — "메트릭으로 X 추가", "데이터셋 N% 확장" 등 */
+  example?: string
+}
+
 /** 트랙에 영구 저장되는 검증 결과 전체. */
 export interface NoveltyCheckResult {
   /** 검증 대상 주제 스냅샷 (검증 당시의 title/gap/angle) */
@@ -60,6 +75,11 @@ export interface NoveltyCheckResult {
   dimensions: Record<NoveltyDimension, DimensionAnalysis>
   /** 외부 검색으로 발견된 유사 논문 Top N (보통 5) */
   similar_papers: SimilarPaper[]
+  /**
+   * v21 (B3-검증): 차별성 기회 3-5개. 사용자 주제가 어디서 차별성을 갖출 수 있는지 추천.
+   * Stage 2 출력 — JSON 파싱 실패 시 undefined (옛 트랙도 호환).
+   */
+  differentiation_opportunities?: DifferentiationOpportunity[]
   /** 종합 요약 (Korean, 2-3 sentences) — UI 상단에 강조 표시 */
   summary: string
   /** 검증 시각 (ISO) */

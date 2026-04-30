@@ -1381,7 +1381,7 @@ export function LiteratureDiscoveryPanel({
         researchIntent={intent}
         researchQuestions={rounds.map((r) => r.question)}
         userInsights={rounds.map((r) => r.user_insight).filter((x): x is string => !!x)}
-        poolPaperTitles={[...existingPapers, ...sessionSaved].map((p) => p.title)}
+        poolPapers={[...existingPapers, ...sessionSaved]}
         onClose={() => setNoveltyTopic(null)}
         onProceed={(result) => {
           const t = noveltyTopic
@@ -1529,7 +1529,7 @@ function SearchRoundCard({
               {round.phase === 'searching'
                 ? round.searchProgress ?? '검색 중'
                 : round.phase === 'verifying' && round.papers.length > 0
-                  ? `검토 중 (${Math.min(round.papers.length, 60)}편)`
+                  ? `검토 중 (${Math.min(round.papers.length, 180)}편)`
                   : '검토 중'}
             </span>
           )}
@@ -1587,9 +1587,9 @@ function SearchRoundCard({
                   {verified && round.papers.length > round.verifications.size && (
                     <span
                       className="text-zinc-600"
-                      title={`현재 검토 한도는 60편입니다. (검색 ${round.papers.length}편 중 ${round.verifications.size}편 검토)`}
+                      title={`현재 검토 한도는 180편입니다 (60편 × 3 청크 병렬). 검색 ${round.papers.length}편 중 ${round.verifications.size}편 검토.`}
                     >
-                      검토 {round.verifications.size}/{round.papers.length}편 (한도 60)
+                      검토 {round.verifications.size}/{round.papers.length}편 (한도 180)
                     </span>
                   )}
                   {unrelatedCount > 0 && (
@@ -1830,6 +1830,11 @@ function TopicCard({ topic, index, onStart, onVerify, disabled }: TopicCardProps
             {expanded && (
               <div className="mt-2 space-y-1.5">
                 <p className="text-[11px] text-zinc-500 leading-snug">{topic.gap}</p>
+                {topic.differentiation_hint && (
+                  <p className="text-[11px] text-emerald-400/80 leading-snug italic">
+                    🎯 차별점: {topic.differentiation_hint}
+                  </p>
+                )}
                 {topic.acceptance_rationale && (
                   <p className="text-[11px] text-indigo-400/70 leading-snug">
                     📋 {topic.acceptance_rationale}
