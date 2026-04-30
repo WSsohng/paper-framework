@@ -33,6 +33,7 @@ export type AIFeature =
   | 'search_synthesis'
   | 'paper_verification'
   | 'hypothesis_generation'
+  | 'novelty_check'
   | 'other'
 
 export interface AIMeta {

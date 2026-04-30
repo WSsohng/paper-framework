@@ -8,10 +8,13 @@ export interface TopicRecommendation {
   title:                string   // specific, publishable paper title
   angle:                string   // strategic angle (Korean, ≤15 chars)
   gap:                  string   // research gap addressed (Korean, 2 sentences)
-  novelty:              string   // novelty argument (Korean, 1 sentence)
   acceptance_rationale: string   // why a top journal would accept this (Korean, 1 sentence)
   supporting_count:     number   // pool papers that back this topic
   confidence:           number   // 0–100
+  // ── v20 노트 ────────────────────────────────────────────
+  // 기존 `novelty` 필드(AI 단독 1문장 평가)는 환각 위험으로 제거됨.
+  // 진짜 novelty 검증은 트랙 생성 직전 명시적 게이트(checkNovelty)에서
+  // 5차원 하이브리드(AI + Semantic Scholar)로 수행하고 트랙에 영구 저장한다.
 }
 
 export type TopicResult =
@@ -89,7 +92,6 @@ export async function recommendTopics(
     "title": "Specific publishable paper title",
     "angle": "핵심 전략 관점 (Korean, max 15 chars)",
     "gap": "이 논문이 채우는 연구 공백 (Korean, 2 sentences)",
-    "novelty": "이 연구가 새로운 이유 (Korean, 1 sentence)",
     "acceptance_rationale": "상위 저널이 이 논문을 채택할 이유 (Korean, 1 sentence)",
     "supporting_count": 12,
     "confidence": 85
